@@ -1,0 +1,26 @@
+'use client';
+import {useState} from 'react';
+import {Pencil,Trash2,FileDown,Download,ArrowUpLeft} from 'lucide-react';
+import {Button} from '@/components/ui/button';
+import {Textarea} from '@/components/ui/textarea';
+import {Sheet,SheetContent,SheetTitle,SheetDescription} from '@/components/ui/sheet';
+import {labels,stageLabels,statusLabels,quoteStatusLabels,quoteAmounts,automationTriggerLabels,automationActionLabels,blank,type Row,type Data,type State} from '@/lib/crm';
+import {money,num,date} from './shared';
+export function Detail({row,rows,members,canEdit,busy,desktop,onClose,onEdit,onDelete,onSave,onOpen,onExcel,onPdf}:{row:Row;rows:Row[];members:State['members'];canEdit:boolean;busy:boolean;desktop:boolean;onClose:()=>void;onEdit:()=>void;onDelete:(r:Row)=>void;onSave:(kind:Row['kind'],data:Data,parent:string|null,record?:Row)=>Promise<boolean>;onOpen:(id:string)=>void;onExcel:()=>void;onPdf:()=>void}){
+ const [note,setNote]=useState(''),d=row.data,customer=rows.find(r=>r.id===row.parent_id),totals=quoteAmounts(d),notes=rows.filter(r=>r.kind==='notes'&&r.parent_id===row.id),related=rows.filter(r=>r.parent_id===row.id&&!['notes','stock_movements'].includes(r.kind));
+ const fields:([string,string])[]=[];
+ if(customer)fields.push([row.kind==='stock_movements'?'محصول':'مشتری مرتبط',customer.data.name]);
+ if(row.kind==='products')fields.push(['کد محصول',d.sku||'—'],['دسته‌بندی',d.category||'—'],['قیمت فروش',money(d.price)],['موجودی',num(d.stock)+' '+d.unit],['حداقل موجودی',num(d.min_stock)+' '+d.unit]);
+ else if(row.kind==='proformas')fields.push(['شماره',d.quote_number||'—'],['اعتبار تا',date(d.valid_until)],['وضعیت',quoteStatusLabels[d.quote_status]]);
+ else if(row.kind==='automations')fields.push(['محرک',automationTriggerLabels[d.automation_trigger]],['اقدام',automationActionLabels[d.automation_action]],['روز',num(d.automation_days)],...(d.automation_trigger==='stage_change'?[['مرحلهٔ مقصد',stageLabels[d.automation_stage]] as [string,string]]:[]));
+ else if(row.kind==='deals')fields.push(['مبلغ',money(d.amount)],['مرحله',stageLabels[d.stage]],['موعد',date(d.due)]);
+ else if(row.kind==='tasks')fields.push(['موعد',date(d.due)],['وضعیت',statusLabels[d.status]]);
+ if(d.email)fields.push(['ایمیل',d.email]);if(d.phone)fields.push(['تلفن',d.phone]);if(d.city)fields.push(['شهر',d.city]);if(d.assignee)fields.push(['مسئول',members.find(m=>m.user_id===d.assignee)?.email||'تعیین نشده']);
+ return <Sheet open onOpenChange={open=>{if(!open)onClose();}}><SheetContent side="left" className="detail-sheet" dir="rtl"><SheetTitle>{d.name}</SheetTitle><SheetDescription>{row.kind==='companies'&&d.status==='lead'?'سرنخ':labels[row.kind]} · پرونده و سوابق</SheetDescription><div className="row wrap">{canEdit&&row.kind!=='stock_movements'&&<><Button variant="outline" disabled={busy} onClick={onEdit}><Pencil size={16}/>ویرایش</Button><Button variant="ghost" disabled={busy} className="danger" onClick={()=>onDelete(row)}><Trash2 size={16}/>حذف</Button></>}{row.kind==='companies'&&d.status==='lead'&&canEdit&&<Button disabled={busy} onClick={()=>onSave('companies',{...d,status:'active'},row.parent_id,row)}>تبدیل به مشتری</Button>}</div>
+ {row.kind==='proformas'&&<div className="quote-export-actions"><Button disabled={busy} className="primary" onClick={onPdf}><FileDown size={17}/>{desktop?'ذخیره PDF':'چاپ / ذخیره PDF'}</Button><Button disabled={busy} variant="outline" onClick={onExcel}><Download size={16}/>Excel</Button></div>}
+ <dl className="details-list">{fields.map(([label,value])=><div className="detail-field" key={label}><dt>{label}</dt><dd dir="auto">{value}</dd></div>)}</dl>
+ {row.kind==='proformas'&&<><h3>اقلام پیش‌فاکتور</h3>{d.items.map((item,i)=><div className="quote-detail-line" key={i}><span><b>{item.name}</b><small>{num(item.quantity)} {item.unit||'عدد'} × {money(item.unit_price)}</small></span><strong>{money(totals.lines[i])}</strong></div>)}<div className="quote-summary"><span>جمع اقلام <b>{money(totals.subtotal)}</b></span><span>تخفیف <b>{money(totals.discount)}</b></span><span>مالیات <b>{money(totals.tax)}</b></span><strong>مبلغ نهایی <b>{money(totals.total)}</b></strong></div><p className="muted">برای تحویل کالا، خروج آن را در انبارداری ثبت کنید.</p></>}
+ {d.description&&<p className="description-text">{d.description}</p>}{related.length>0&&<><h3>موارد مرتبط</h3>{related.map(r=><button className="related-item" key={r.id} onClick={()=>onOpen(r.id)}>{r.data.name}<small>{labels[r.kind]}</small><ArrowUpLeft size={16}/></button>)}</>}
+ {row.kind!=='stock_movements'&&<><h3>یادداشت‌های ارتباط</h3>{notes.map(r=><article className="note" key={r.id}><p>{r.data.description}</p><small>{date(r.created_at)}</small>{canEdit&&!r.data.automation_key&&<Button size="icon" variant="ghost" aria-label="حذف یادداشت" disabled={busy} onClick={()=>onDelete(r)}><Trash2 size={14}/></Button>}</article>)}{canEdit&&row.kind!=='notes'&&<form onSubmit={async e=>{e.preventDefault();if(await onSave('notes',{...blank(),name:'یادداشت ارتباط',description:note},row.id))setNote('');}}><label>یادداشت جدید<Textarea required maxLength={10000} value={note} onChange={e=>setNote(e.target.value)}/></label><Button disabled={busy||!note.trim()} type="submit">ثبت یادداشت</Button></form>}</>}
+ </SheetContent></Sheet>;
+}

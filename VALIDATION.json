@@ -1,0 +1,37 @@
+{
+  "date": "2026-09-05",
+  "build": {
+    "command": "npm run build:vercel",
+    "result": "passed",
+    "typescript": "passed"
+  },
+  "unit_tests": {
+    "command": "npm run test:crm",
+    "passed": 5,
+    "failed": 0
+  },
+  "http_smoke": {
+    "command": "npm run test:http",
+    "result": "passed",
+    "checks": [
+      "RTL HTML",
+      "linked JS/CSS assets",
+      "security headers",
+      "disconnected configuration state",
+      "unauthenticated CRM rejection",
+      "cross-origin mutation rejection",
+      "malformed JSON rejection",
+      "credential format validation",
+      "body size limit",
+      "missing backend failure"
+    ]
+  },
+  "not_run": [
+    "Live Supabase migration execution",
+    "Live PostgreSQL RLS and multi-user integration",
+    "Live email delivery and session refresh",
+    "Browser visual/interaction QA",
+    "Vercel deployment"
+  ],
+  "deployment_status": "Blocked: Vercel account is not connected; Supabase project configuration is not available"
+}

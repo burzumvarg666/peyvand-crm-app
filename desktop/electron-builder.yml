@@ -1,0 +1,22 @@
+appId: com.peyvand.crm
+productName: Peyvand CRM
+electronVersion: 44.2.0
+directories:
+  app: desktop/runtime
+  output: windows-release
+files:
+  - '**/*'
+asar: true
+win:
+  target:
+    - target: dir
+      arch: [x64]
+  icon: desktop/icon.ico
+  signAndEditExecutable: false
+  artifactName: Peyvand-CRM-${version}-Windows-${arch}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  deleteAppDataOnUninstall: false

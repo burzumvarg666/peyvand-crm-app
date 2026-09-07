@@ -1,0 +1,13 @@
+import {build} from 'esbuild';
+import {build as viteBuild} from 'vite';
+import {rm,mkdir,cp,writeFile,readFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+await viteBuild({configFile:resolve('desktop/vite.config.mts')});
+await rm('desktop/runtime',{recursive:true,force:true});await mkdir('desktop/runtime',{recursive:true});
+await build({entryPoints:['desktop/main.mjs'],bundle:true,platform:'node',target:'node24',format:'cjs',external:['electron'],outfile:'desktop/runtime/main.cjs'});
+await cp('desktop/ui','desktop/runtime/ui',{recursive:true});
+await cp('desktop/icon.ico','desktop/runtime/icon.ico');
+await cp('desktop/preload.cjs','desktop/runtime/preload.cjs');
+const {version}=JSON.parse(await readFile('package.json','utf8'));
+await writeFile('desktop/runtime/package.json',JSON.stringify({name:'peyvand-crm-desktop',productName:'Peyvand CRM',version,description:'Offline Persian customer relationship management',author:'Peyvand',main:'main.cjs'},null,2));
+console.log('Desktop application built.');

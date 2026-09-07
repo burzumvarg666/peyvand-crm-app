@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "target": "Windows x64 portable",
+  "electron": "44.2.0",
+  "date": "2026-09-05",
+  "desktop_vite_build": "passed",
+  "typescript": "passed",
+  "sqlite_and_http_integration_tests": {
+    "passed": 7,
+    "failed": 0,
+    "coverage": [
+      "disk persistence across reopen",
+      "stale update/delete rejection",
+      "parent deletion retaining children",
+      "full backup/restore",
+      "invalid backup preservation",
+      "input and relationship validation",
+      "session-gated local HTTP and packaged assets"
+    ]
+  },
+  "electron_linux_runtime_probe": {
+    "node": "24.20.0",
+    "sqlite": "3.53.4",
+    "result": "passed"
+  },
+  "windows_payload_pe_architecture": "AMD64 (0x8664)",
+  "windows_gui_execution": "not run; Windows runtime unavailable",
+  "nsis_installer": "not completed: Wine is unavailable; portable target used instead",
+  "digital_signature": "unsigned",
+  "database_mode": "offline single user; Windows profile local SQLite",
+  "portable_packaging": "passed",
+  "asar_payload": "verified",
+  "portable_bytes": 103526273,
+  "sha256": "7048aaa9f04b0523108f38ec5441a801e5230d8f75932431c73566c8bd97833d"
+}
