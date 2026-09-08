@@ -25,7 +25,7 @@ export function Dashboard({rows,audit,onNavigate,onOpen}:{rows:Row[];audit:Audit
   const eligible=rows.filter(r=>r.kind==='deals'&&r.created_at.slice(0,10)>=cutoff);
   const first=period==='all'?eligible.reduce((s,r)=>r.created_at.slice(0,10)<s?r.created_at.slice(0,10):s,addDays(now,-89)):cutoff;
   const span=Math.max(1,Math.round((Date.parse(now)-Date.parse(first))/86400000)+1),size=Math.max(1,Math.ceil(span/8));
-  return Array.from({length:Math.ceil(span/size)},(_,i)=>{const start=addDays(first,i*size),end=addDays(first,(i+1)*size);const list=eligible.filter(r=>r.created_at.slice(0,10)>=start&&r.created_at.slice(0,10)<end);return {label:new Intl.DateTimeFormat('fa-IR',{month:'short',day:'numeric'}).format(new Date(start+'T12:00:00')),value:list.reduce((s,r)=>s+r.data.amount,0),won:list.filter(r=>r.data.stage==='won').reduce((s,r)=>s+r.data.amount,0)};});
+  return Array.from({length:Math.ceil(span/size)},(_,i)=>{const start=addDays(first,i*size),end=addDays(first,(i+1)*size);const list=eligible.filter(r=>r.created_at.slice(0,10)>=start&&r.created_at.slice(0,10)<end);return {label:new Intl.DateTimeFormat('fa-IR-u-ca-persian',{month:'short',day:'numeric'}).format(new Date(start+'T12:00:00')),value:list.reduce((s,r)=>s+r.data.amount,0),won:list.filter(r=>r.data.stage==='won').reduce((s,r)=>s+r.data.amount,0)};});
  },[rows,cutoff,now,period]);
  const pendingQuotes=quotes.filter(r=>['draft','sent'].includes(r.data.quote_status)).reduce((s,r)=>s+quoteAmounts(r.data).total,0);
  return <div className="dashboard-v5">

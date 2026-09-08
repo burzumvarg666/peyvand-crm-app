@@ -1,6 +1,6 @@
 {
   "name": "peyvand-crm",
-  "version": "0.5.2",
+  "version": "0.5.4",
   "private": true,
   "engines": {
     "node": ">=22.13.0"

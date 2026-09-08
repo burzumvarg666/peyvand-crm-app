@@ -2,7 +2,7 @@ import ExcelJS from 'exceljs';
 import { labels, stageLabels, statusLabels, quoteStatusLabels, automationTriggerLabels, automationActionLabels, quoteAmounts, type Row } from './crm';
 
 const amount = (n: number) => new Intl.NumberFormat('fa-IR').format(n);
-const faDate = (s: string) => s ? new Intl.DateTimeFormat('fa-IR', {dateStyle:'medium'}).format(new Date(s.length === 10 ? s + 'T12:00:00' : s)) : 'تعیین نشده';
+const faDate = (s: string) => s ? new Intl.DateTimeFormat('fa-IR-u-ca-persian', {dateStyle:'medium'}).format(new Date(s.length === 10 ? s + 'T12:00:00' : s)) : 'تعیین نشده';
 const safe = (v: unknown) => String(v ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replaceAll('&', '&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 export const movementLabels = { in: 'ورود کالا', out: 'خروج کالا', adjustment: 'اصلاح شمارش', opening: 'موجودی اولیه' };
 
@@ -23,7 +23,7 @@ export function proformaHtml(row: Row, rows: Row[], organization: string) {
 }
 
 type Value = string | number | Date;
-const excelDate = (s: string): Value => s ? new Date(s.length === 10 ? s + 'T12:00:00Z' : s) : '';
+const excelDate = (s: string): Value => s ? faDate(s) : '';
 export function buildWorkbook(items: Row[], allRows: Row[] = items) {
     const wb = new ExcelJS.Workbook(); wb.creator = 'Peyvand CRM'; wb.created = new Date();
     const parentName = (row: Row) => allRows.find(p => p.id === row.parent_id)?.data.name || '';
@@ -33,17 +33,17 @@ export function buildWorkbook(items: Row[], allRows: Row[] = items) {
         headers = ['نام محصول','کد محصول','دسته‌بندی','واحد','قیمت فروش (تومان)','موجودی','حداقل موجودی','وضعیت','توضیحات'];
         values = items.map(({data:d}) => [d.name,d.sku,d.category,d.unit,d.price,d.stock,d.min_stock,statusLabels[d.status],d.description]);
     } else if (kind === 'proformas') {
-        headers = ['شماره پیش‌فاکتور','عنوان','مشتری','تاریخ صدور (میلادی)','اعتبار (میلادی)','وضعیت','جمع اقلام (تومان)','تخفیف (تومان)','مالیات (تومان)','مبلغ نهایی (تومان)'];
+        headers = ['شماره پیش‌فاکتور','عنوان','مشتری','تاریخ صدور (شمسی)','اعتبار (شمسی)','وضعیت','جمع اقلام (تومان)','تخفیف (تومان)','مالیات (تومان)','مبلغ نهایی (تومان)'];
         values = items.map(r => { const t=quoteAmounts(r.data); return [r.data.quote_number,r.data.name,parentName(r),excelDate(r.created_at),excelDate(r.data.valid_until),quoteStatusLabels[r.data.quote_status],t.subtotal,t.discount,t.tax,t.total]; });
     } else if (kind === 'stock_movements') {
-        headers = ['محصول','نوع عملیات','تغییر موجودی','موجودی پس از عملیات','تاریخ (میلادی)','مرجع','توضیحات'];
+        headers = ['محصول','نوع عملیات','تغییر موجودی','موجودی پس از عملیات','تاریخ (شمسی)','مرجع','توضیحات'];
         values = items.map(r => [parentName(r) || r.data.name,movementLabels[r.data.movement_type],r.data.movement_quantity,r.data.stock_after,excelDate(r.created_at),r.data.movement_reference,r.data.description]);
     } else if (kind === 'automations') {
         headers=['نام قانون','محرک','اقدام','مرحله هدف','روز','فعال','توضیحات'];
         values=items.map(({data:d})=>[d.name,automationTriggerLabels[d.automation_trigger],automationActionLabels[d.automation_action],stageLabels[d.automation_stage],d.automation_days,d.automation_enabled&&d.status==='active'?'بله':'خیر',d.description]);
     } else {
-        headers = ['شناسه','نوع','عنوان','مشتری / محصول مرتبط','ایمیل','تلفن','شهر','مرحله فروش','مبلغ (تومان)','موعد (میلادی)','وضعیت','توضیحات'];
-        values=items.map(r=>[r.id,r.kind==='companies'&&r.data.status==='lead'?'سرنخ':labels[r.kind],r.data.name,parentName(r),r.data.email,r.data.phone,r.data.city,r.kind==='deals'?stageLabels[r.data.stage]:'',r.kind==='deals'?r.data.amount:r.kind==='proformas'?quoteAmounts(r.data).total:r.kind==='products'?r.data.price:0,excelDate(r.data.due),r.kind==='proformas'?quoteStatusLabels[r.data.quote_status]:statusLabels[r.data.status],r.data.description]);
+        headers = ['شناسه','نوع','عنوان','مشتری / محصول مرتبط','ایمیل','تلفن','شهر','مرحله فروش','مبلغ (تومان)','موعد (شمسی)','تاریخ شروع (شمسی)','تاریخ پایان (شمسی)','وضعیت','توضیحات'];
+        values=items.map(r=>[r.id,r.kind==='companies'&&r.data.status==='lead'?'سرنخ':labels[r.kind],r.data.name,parentName(r),r.data.email,r.data.phone,r.data.city,r.kind==='deals'?stageLabels[r.data.stage]:'',r.kind==='deals'?r.data.amount:r.kind==='proformas'?quoteAmounts(r.data).total:r.kind==='products'?r.data.price:0,excelDate(r.data.due),excelDate(r.data.start_date),excelDate(r.data.end_date),r.kind==='proformas'?quoteStatusLabels[r.data.quote_status]:statusLabels[r.data.status],r.data.description]);
     }
     function addSheet(name: string, columns: string[], data: Value[][]) {
         const sheet=wb.addWorksheet(name,{views:[{state:'frozen',ySplit:1,rightToLeft:true}],pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'1:1'}});

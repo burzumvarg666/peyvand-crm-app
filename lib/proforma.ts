@@ -1,6 +1,6 @@
 import {quoteAmounts,quoteStatusLabels,type Row} from './crm';
 const amount=(n:number)=>new Intl.NumberFormat('fa-IR').format(n);
-const faDate=(s:string)=>s?new Intl.DateTimeFormat('fa-IR',{dateStyle:'medium'}).format(new Date(s.length===10?s+'T12:00:00':s)):'تعیین نشده';
+const faDate=(s:string)=>s?new Intl.DateTimeFormat('fa-IR-u-ca-persian',{dateStyle:'medium'}).format(new Date(s.length===10?s+'T12:00:00':s)):'تعیین نشده';
 const safe=(v:unknown)=>String(v??'').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('\"','&quot;').replaceAll("'",'&#39;');
 export function proformaHtml(row: Row, rows: Row[], organization: string) {
     const data = row.data, totals = quoteAmounts(data), customer = rows.find(r => r.id === row.parent_id);
@@ -17,4 +17,3 @@ export function proformaHtml(row: Row, rows: Row[], organization: string) {
     <section class="totals"><p><span>جمع اقلام</span><b>${amount(totals.subtotal)}</b></p><p><span>تخفیف (${amount(data.discount_percent)}٪)</span><b>${amount(totals.discount)}</b></p><p><span>مالیات (${amount(data.tax_percent)}٪)</span><b>${amount(totals.tax)}</b></p><p class="total"><span>مبلغ نهایی</span><b>${amount(totals.total)} تومان</b></p></section>
     ${data.description?`<p class="note"><b>توضیحات:</b><br>${safe(data.description)}</p>`:''}<section class="signatures"><span>مهر و امضای فروشنده</span><span>تأیید خریدار</span></section><div class="footer">این سند پیش‌فاکتور است. ثبت خروج کالا در بخش انبارداری انجام می‌شود.</div></body></html>`;
 }
-
