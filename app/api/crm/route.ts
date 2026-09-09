@@ -1,7 +1,8 @@
+import {automationCandidates} from '@/lib/automation';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { session, rest, body, fail, ApiError } from '@/lib/server';
-import { dataSchema, kinds } from '@/lib/crm';
+import { dataSchema, kinds, validateSales, localDay, type Row } from '@/lib/crm';
 export const dynamic = 'force-dynamic';
 const uuid = z.string().uuid();
 async function membership(token: string, userId: string) { const m = await rest(`crm_members?user_id=eq.${userId}&select=org_id,role&limit=1`, token); return m[0]; }
@@ -11,12 +12,20 @@ async function all(table: string, token: string) { const result: unknown[] = [];
     if (page.length < 500)
         return result;
 } throw new ApiError('حجم اطلاعات برای این نما زیاد است. از پشتیبانی کمک بگیرید.', 413); }
+async function automate(token: string, orgId: string, change?: {previous?:Row;next:Row}) {
+    const records=(await all(`crm_records?org_id=eq.${orgId}&select=*&order=id`,token) as Row[]).map(r=>({...r,data:dataSchema.parse(r.data)}));
+    for(const candidate of automationCandidates(records,localDay(),change)) {
+        try { await rest('crm_records',token,{method:'POST',body:JSON.stringify({...candidate,org_id:orgId})}); }
+        catch(e) { if(!(e instanceof ApiError)||e.status!==409) throw e; }
+    }
+}
 export async function GET() { try {
     const { token, user } = await session();
     await rest('rpc/crm_accept_invites', token, { method: 'POST', body: '{}' });
     const m = await membership(token, user.id);
     if (!m)
         return NextResponse.json({ org: null, user: { id: user.id, email: user.email }, role: 'viewer', records: [], members: [], invites: [], audit: [] });
+    if(m.role !== 'viewer') await automate(token,m.org_id);
     const [org, records, members, invites, audit] = await Promise.all([rest(`crm_orgs?id=eq.${m.org_id}&select=id,name`, token), all(`crm_records?org_id=eq.${m.org_id}&select=*&order=created_at.desc,id`, token), all(`crm_members?org_id=eq.${m.org_id}&select=user_id,email,role&order=user_id`, token), m.role === 'admin' ? all(`crm_invites?org_id=eq.${m.org_id}&select=id,email,role&order=id`, token) : [], rest(`crm_audit?org_id=eq.${m.org_id}&select=id,record_id,action,label,created_at,actor_id&order=created_at.desc&limit=100`, token)]);
     return NextResponse.json({ org: org[0], role: m.role, user: { id: user.id, email: user.email }, records, members, invites, audit });
 }
@@ -39,11 +48,24 @@ export async function POST(req: NextRequest) {
             throw new ApiError('فضای کاری یافت نشد.', 404);
         if (m.role === 'viewer')
             throw new ApiError('دسترسی شما فقط مشاهده است.', 403);
+        if(input.action === 'inventory') {
+            const p=z.object({product_id:uuid,version:z.number().int().positive(),type:z.enum(['in','out','adjustment']),quantity:z.number().finite().min(0).max(1e12),reference:z.string().max(160).default(''),description:z.string().max(10000).default('')}).safeParse(input);
+            if(!p.success) throw new ApiError('اطلاعات گردش انبار معتبر نیست.');
+            const v=p.data;
+            await rest('rpc/crm_inventory',token,{method:'POST',body:JSON.stringify({product_id:v.product_id,expected_version:v.version,movement_type:v.type,quantity:v.quantity,reference:v.reference,description:v.description})});
+            return NextResponse.json({ok:true});
+        }
         if (input.action === 'save') {
             const p = z.object({ kind: z.enum(kinds), data: dataSchema, parent_id: uuid.nullable(), id: uuid.optional(), version: z.number().int().positive().optional() }).safeParse(input);
             if (!p.success)
                 throw new ApiError(p.error.issues[0].message);
             const v = p.data;
+            if(v.kind === 'stock_movements') throw new ApiError('گردش انبار را از بخش انبار ثبت کنید.');
+            const salesError=validateSales(v.kind,v.data);
+            if(salesError) throw new ApiError(salesError);
+            if(v.kind==='proformas'&&!v.parent_id) throw new ApiError('مشتری پیش‌فاکتور را انتخاب کنید.');
+            const previous:Row|undefined=v.id?(await rest(`crm_records?id=eq.${v.id}&org_id=eq.${m.org_id}&select=*`,token))[0]:undefined;
+
             if (v.kind === 'tasks' && !['open', 'done'].includes(v.data.status))
                 throw new ApiError('وضعیت پیگیری معتبر نیست.');
             if (['companies', 'contacts'].includes(v.kind) && !['active', 'lead', 'inactive'].includes(v.data.status))
@@ -66,6 +88,7 @@ export async function POST(req: NextRequest) {
             const result = await rest(v.id ? `crm_records?id=eq.${v.id}&org_id=eq.${m.org_id}&kind=eq.${v.kind}&version=eq.${v.version || 0}` : 'crm_records', token, { method: v.id ? 'PATCH' : 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(payload) });
             if (!result?.length)
                 throw new ApiError('رکورد تغییر کرده یا حذف شده است. صفحه را تازه و دوباره ویرایش کنید.', 409);
+            await automate(token,m.org_id,{previous,next:result[0]});
             return NextResponse.json({ ok: true });
         }
         if (input.action === 'delete') {

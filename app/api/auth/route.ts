@@ -28,21 +28,13 @@ export async function POST(req: NextRequest) { try {
         }
         return NextResponse.json({ ok: true });
     }
-    const parsed = z.object({ action: z.enum(['login', 'signup']), email: z.string().email().max(254), password: z.string().min(1).max(128) }).safeParse(input);
+    const parsed = z.object({ action: z.enum(['login', 'signup']), email: z.string().trim().email().max(254), password: z.string().min(1).max(128) }).safeParse(input);
     if (!parsed.success)
         throw new ApiError('ایمیل یا رمز عبور معتبر نیست.');
     const { action, email, password } = parsed.data;
     if (action === 'signup' && password.length < 10)
         throw new ApiError('رمز عبور باید حداقل ۱۰ کاراکتر داشته باشد.');
-    let d;
-    try {
-        d = await sb(action === 'signup' ? '/auth/v1/signup' : '/auth/v1/token?grant_type=password', undefined, { method: 'POST', body: JSON.stringify({ email, password }) });
-    }
-    catch (e) {
-        if (e instanceof ApiError && [400, 401].includes(e.status))
-            throw new ApiError('ایمیل، رمز عبور یا تأیید حساب را بررسی کنید.', 401);
-        throw e;
-    }
+    const d = await sb(action === 'signup' ? '/auth/v1/signup' : '/auth/v1/token?grant_type=password', undefined, { method: 'POST', body: JSON.stringify({ email, password }) });
     if (d.access_token)
         await setSession(d);
     return NextResponse.json({ ok: true, confirmation: !d.access_token });
