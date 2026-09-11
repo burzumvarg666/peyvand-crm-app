@@ -1,5 +1,5 @@
 'use client';
-import {useMemo,useState} from 'react';
+import {useState,type ReactNode} from 'react';
 import {Building2,CalendarDays,ChevronDown,ChevronUp,ClipboardList,MapPin,Phone,Plus,Target,Users} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {Textarea} from '@/components/ui/textarea';
@@ -17,7 +17,7 @@ export function DanaAccountProfile({row,rows,canEdit,busy,onOpen,onEdit,onDelete
  const notes=rows.filter(r=>r.kind==='notes'&&r.parent_id===row.id);
  const [expanded,setExpanded]=useState<Record<string,boolean>>({info:true,notes:true,contacts:true,deals:true,open:true,closed:true});
  const toggle=(k:string)=>setExpanded(s=>({...s,[k]:!s[k]}));
- const Section=({id,title,count,actions,children}:{id:string;title:string;count?:number;actions?:React.ReactNode;children:React.ReactNode})=><section className="dana-related-panel" id={'account-'+id}>
+ const Section=({id,title,count,actions,children}:{id:string;title:string;count?:number;actions?:ReactNode;children:ReactNode})=><section className="dana-related-panel" id={'account-'+id}>
   <header className="dana-related-head"><button className="dana-panel-toggle" onClick={()=>toggle(id)}>{expanded[id]?<ChevronUp size={17}/>:<ChevronDown size={17}/>}<b>{title}</b>{typeof count==='number'&&<span className="dana-count">{num(count)}</span>}</button>{actions}</header>
   {expanded[id]&&<div className="dana-related-body">{children}</div>}
  </section>;
