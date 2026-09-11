@@ -26,14 +26,14 @@ export function People({rows,canEdit,onOpen,onNavigate,onNewAccount,onNewContact
   </div>
   <div className="people-columns">
    <article className="panel people-panel">
-    <div className="section-title"><div><h2>حساب‌ها</h2><p>پروندهٔ شرکت‌ها و ارتباطات وابسته</p></div><div className="row">{canEdit&&<Button size="sm" onClick={onNewAccount}>حساب جدید</Button>}<Button size="sm" variant="ghost" onClick={()=>onNavigate('companies')}>مشاهده همه <ArrowUpLeft size={15}/></Button></div></div>
+    <div className="section-title"><div><h2>حساب‌ها</h2><p>پروندهٔ شرکت‌ها و ارتباطات وابسته</p></div><div className="row">{canEdit&&<Button size="sm" className="people-primary-button" onClick={onNewAccount}>حساب جدید</Button>}<Button size="sm" variant="ghost" onClick={()=>onNavigate('companies')}>مشاهده همه <ArrowUpLeft size={15}/></Button></div></div>
     <div className="people-list">{accounts.slice(0,7).map(r=>{
      const cc=contactsFor(r.id).length,dc=deals.filter(d=>d.parent_id===r.id).length,ac=accountActivityCount(r.id),pc=proformas.filter(p=>p.parent_id===r.id).length;
      return <button className="people-row" key={r.id} onClick={()=>onOpen(r.id)}><span className="person-avatar account"><Building2 size={17}/></span><span className="people-main"><b>{r.data.name}</b><small>{r.data.industry||r.data.city||'حساب مشتری'} · آخرین تغییر {date(r.updated_at)}</small></span><span className="people-relations"><small>{num(cc)} کانتکت</small><small>{num(dc)} فرصت</small><small>{num(ac)} فعالیت باز</small><small>{num(pc)} پیش‌فاکتور</small></span><ArrowUpLeft size={16}/></button>;
     })}{!accounts.length&&<p className="column-empty">هنوز حسابی ثبت نشده است.</p>}</div>
    </article>
    <article className="panel people-panel">
-    <div className="section-title"><div><h2>کانتکت‌ها</h2><p>اشخاص حقیقی متصل به حساب‌ها</p></div><div className="row">{canEdit&&<Button size="sm" onClick={onNewContact}>کانتکت جدید</Button>}<Button size="sm" variant="ghost" onClick={()=>onNavigate('contacts')}>مشاهده همه <ArrowUpLeft size={15}/></Button></div></div>
+    <div className="section-title"><div><h2>کانتکت‌ها</h2><p>اشخاص حقیقی متصل به حساب‌ها</p></div><div className="row">{canEdit&&<Button size="sm" className="people-primary-button" onClick={onNewContact}>کانتکت جدید</Button>}<Button size="sm" variant="ghost" onClick={()=>onNavigate('contacts')}>مشاهده همه <ArrowUpLeft size={15}/></Button></div></div>
     <div className="people-list">{contacts.slice(0,7).map(r=>{
      const account=parent(r),ac=openActivities.filter(a=>a.parent_id===r.id).length;
      return <button className="people-row" key={r.id} onClick={()=>onOpen(r.id)}><span className="person-avatar"><Users size={17}/></span><span className="people-main"><b>{r.data.name}</b><small>{r.data.position||'بدون سمت'}{account?' · '+account.data.name:''}</small></span><span className="people-relations"><small>{r.data.phone||r.data.email||'اطلاعات تماس ثبت نشده'}</small><small>{num(ac)} فعالیت باز</small></span><ArrowUpLeft size={16}/></button>;
