@@ -6,7 +6,8 @@ import {Textarea} from '@/components/ui/textarea';
 import {Sheet,SheetContent,SheetTitle,SheetDescription} from '@/components/ui/sheet';
 import {labels,stageLabels,statusLabels,quoteStatusLabels,quoteAmounts,automationTriggerLabels,automationActionLabels,activityTypeLabels,activityDirectionLabels,blank,type Row,type Data,type State} from '@/lib/crm';
 import {money,num,date} from './shared';
-export function Detail({row,rows,members,canEdit,busy,desktop,onClose,onEdit,onDelete,onSave,onOpen,onExcel,onPdf}:{row:Row;rows:Row[];members:State['members'];canEdit:boolean;busy:boolean;desktop:boolean;onClose:()=>void;onEdit:()=>void;onDelete:(r:Row)=>void;onSave:(kind:Row['kind'],data:Data,parent:string|null,record?:Row)=>Promise<boolean>;onOpen:(id:string)=>void;onExcel:()=>void;onPdf:()=>void}){
+import {DanaAccountProfile} from './dana-account-profile';
+export function Detail({row,rows,members,canEdit,busy,desktop,onClose,onEdit,onDelete,onSave,onOpen,onExcel,onPdf,onNewRelated}:{row:Row;rows:Row[];members:State['members'];canEdit:boolean;busy:boolean;desktop:boolean;onClose:()=>void;onEdit:()=>void;onDelete:(r:Row)=>void;onSave:(kind:Row['kind'],data:Data,parent:string|null,record?:Row)=>Promise<boolean>;onOpen:(id:string)=>void;onExcel:()=>void;onPdf:()=>void;onNewRelated:(kind:'contacts'|'deals'|'activities',parent:string,preset?:Partial<Data>)=>void}){
  const [note,setNote]=useState(''),d=row.data,customer=rows.find(r=>r.id===row.parent_id),totals=quoteAmounts(d),notes=rows.filter(r=>r.kind==='notes'&&r.parent_id===row.id),related=rows.filter(r=>r.parent_id===row.id&&!['notes','stock_movements'].includes(r.kind));
  const childContactIds=new Set(rows.filter(r=>r.kind==='contacts'&&r.parent_id===row.id).map(r=>r.id));
  const accountRelated=row.kind==='companies'?rows.filter(r=>{
@@ -17,6 +18,7 @@ export function Detail({row,rows,members,canEdit,busy,desktop,onClose,onEdit,onD
  }):[];
  const contactRelated=row.kind==='contacts'?rows.filter(r=>r.id!==row.id&&!['notes','stock_movements'].includes(r.kind)&&r.parent_id===row.id):[];
  const linkedRelated=row.kind==='companies'?accountRelated:row.kind==='contacts'?contactRelated:related;
+ if(row.kind==='companies'&&row.data.status!=='lead')return <Sheet open onOpenChange={open=>{if(!open)onClose();}}><SheetContent side="left" className="detail-sheet dana-account-sheet" dir="rtl"><SheetTitle className="sr-only">{row.data.name}</SheetTitle><SheetDescription className="sr-only">پرونده حساب و ارتباطات مرتبط</SheetDescription><DanaAccountProfile row={row} rows={rows} canEdit={canEdit} busy={busy} onOpen={onOpen} onEdit={onEdit} onDelete={onDelete} onSave={onSave} onNewRelated={onNewRelated}/></SheetContent></Sheet>;
  const fields:([string,string])[]=[];
  if(customer)fields.push([row.kind==='stock_movements'?'محصول':'مشتری مرتبط',customer.data.name]);
  if(row.kind==='products')fields.push(['کد محصول',d.sku||'—'],['دسته‌بندی',d.category||'—'],['قیمت فروش',money(d.price)],['موجودی',num(d.stock)+' '+d.unit],['حداقل موجودی',num(d.min_stock)+' '+d.unit]);
