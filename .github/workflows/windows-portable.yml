@@ -18,12 +18,28 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: Generate Windows icon from Peyvand logo
+        shell: pwsh
+        run: |
+          npm install --no-save sharp png-to-ico
+          @'
+          const fs=require('fs');
+          const sharp=require('sharp');
+          (async()=>{
+            const png=await sharp('desktop/peyvand-logo.svg').resize(256,256).png().toBuffer();
+            fs.writeFileSync('desktop/peyvand-logo.png',png);
+            const mod=await import('png-to-ico');
+            const ico=await mod.default(['desktop/peyvand-logo.png']);
+            fs.writeFileSync('desktop/icon.ico',ico);
+          })().catch(e=>{console.error(e);process.exit(1)});
+          '@ | Set-Content -Encoding utf8 desktop/make-icon.cjs
+          node desktop/make-icon.cjs
       - run: npm run build:desktop
       - run: npm run test:desktop
       - run: npx electron-builder --config desktop/electron-builder.yml --win portable --x64
       - uses: actions/upload-artifact@v4
         with:
-          name: Peyvand-CRM-0.5.4-Windows-x64
+          name: Peyvand-CRM-0.5.4-Windows-x64-New-Logo
           path: windows-release/*.exe
           if-no-files-found: error
           retention-days: 14
