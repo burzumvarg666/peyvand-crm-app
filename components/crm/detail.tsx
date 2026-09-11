@@ -8,6 +8,15 @@ import {labels,stageLabels,statusLabels,quoteStatusLabels,quoteAmounts,automatio
 import {money,num,date} from './shared';
 export function Detail({row,rows,members,canEdit,busy,desktop,onClose,onEdit,onDelete,onSave,onOpen,onExcel,onPdf}:{row:Row;rows:Row[];members:State['members'];canEdit:boolean;busy:boolean;desktop:boolean;onClose:()=>void;onEdit:()=>void;onDelete:(r:Row)=>void;onSave:(kind:Row['kind'],data:Data,parent:string|null,record?:Row)=>Promise<boolean>;onOpen:(id:string)=>void;onExcel:()=>void;onPdf:()=>void}){
  const [note,setNote]=useState(''),d=row.data,customer=rows.find(r=>r.id===row.parent_id),totals=quoteAmounts(d),notes=rows.filter(r=>r.kind==='notes'&&r.parent_id===row.id),related=rows.filter(r=>r.parent_id===row.id&&!['notes','stock_movements'].includes(r.kind));
+ const childContactIds=new Set(rows.filter(r=>r.kind==='contacts'&&r.parent_id===row.id).map(r=>r.id));
+ const accountRelated=row.kind==='companies'?rows.filter(r=>{
+  if(r.id===row.id||['notes','stock_movements'].includes(r.kind))return false;
+  if(r.parent_id===row.id)return true;
+  if(['activities','tasks'].includes(r.kind)&&r.parent_id&&childContactIds.has(r.parent_id))return true;
+  return false;
+ }):[];
+ const contactRelated=row.kind==='contacts'?rows.filter(r=>r.id!==row.id&&!['notes','stock_movements'].includes(r.kind)&&r.parent_id===row.id):[];
+ const linkedRelated=row.kind==='companies'?accountRelated:row.kind==='contacts'?contactRelated:related;
  const fields:([string,string])[]=[];
  if(customer)fields.push([row.kind==='stock_movements'?'محصول':'مشتری مرتبط',customer.data.name]);
  if(row.kind==='products')fields.push(['کد محصول',d.sku||'—'],['دسته‌بندی',d.category||'—'],['قیمت فروش',money(d.price)],['موجودی',num(d.stock)+' '+d.unit],['حداقل موجودی',num(d.min_stock)+' '+d.unit]);
@@ -22,7 +31,7 @@ export function Detail({row,rows,members,canEdit,busy,desktop,onClose,onEdit,onD
  {row.kind==='proformas'&&<div className="quote-export-actions"><Button disabled={busy} className="primary" onClick={onPdf}><FileDown size={17}/>{desktop?'ذخیره PDF':'چاپ / ذخیره PDF'}</Button><Button disabled={busy} variant="outline" onClick={onExcel}><Download size={16}/>Excel</Button></div>}
  <dl className="details-list">{fields.map(([label,value])=><div className="detail-field" key={label}><dt>{label}</dt><dd dir="auto">{value}</dd></div>)}</dl>
  {row.kind==='proformas'&&<><h3>اقلام پیش‌فاکتور</h3>{d.items.map((item,i)=><div className="quote-detail-line" key={i}><span><b>{item.name}</b><small>{num(item.quantity)} {item.unit||'عدد'} × {money(item.unit_price)}</small></span><strong>{money(totals.lines[i])}</strong></div>)}<div className="quote-summary"><span>جمع اقلام <b>{money(totals.subtotal)}</b></span><span>تخفیف <b>{money(totals.discount)}</b></span><span>مالیات <b>{money(totals.tax)}</b></span><strong>مبلغ نهایی <b>{money(totals.total)}</b></strong></div><p className="muted">برای تحویل کالا، خروج آن را در انبارداری ثبت کنید.</p></>}
- {d.description&&<p className="description-text">{d.description}</p>}{related.length>0&&<><h3>موارد مرتبط</h3>{related.map(r=><button className="related-item" key={r.id} onClick={()=>onOpen(r.id)}>{r.data.name}<small>{labels[r.kind]}</small><ArrowUpLeft size={16}/></button>)}</>}
+ {d.description&&<p className="description-text">{d.description}</p>}{linkedRelated.length>0&&<><h3>{row.kind==='companies'?'ارتباطات حساب':row.kind==='contacts'?'ارتباطات کانتکت':'موارد مرتبط'}</h3>{linkedRelated.map(r=><button className="related-item" key={r.id} onClick={()=>onOpen(r.id)}>{r.data.name}<small>{r.kind==='contacts'?'کانتکت':r.kind==='companies'?'حساب':labels[r.kind]}</small><ArrowUpLeft size={16}/></button>)}</>}
  {row.kind!=='stock_movements'&&<><h3>یادداشت‌های ارتباط</h3>{notes.map(r=><article className="note" key={r.id}><p>{r.data.description}</p><small>{date(r.created_at)}</small>{canEdit&&!r.data.automation_key&&<Button size="icon" variant="ghost" aria-label="حذف یادداشت" disabled={busy} onClick={()=>onDelete(r)}><Trash2 size={14}/></Button>}</article>)}{canEdit&&row.kind!=='notes'&&<form onSubmit={async e=>{e.preventDefault();if(await onSave('notes',{...blank(),name:'یادداشت ارتباط',description:note},row.id))setNote('');}}><label>یادداشت جدید<Textarea required maxLength={10000} value={note} onChange={e=>setNote(e.target.value)}/></label><Button disabled={busy||!note.trim()} type="submit">ثبت یادداشت</Button></form>}</>}
  </SheetContent></Sheet>;
 }
