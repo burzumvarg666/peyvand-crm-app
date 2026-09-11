@@ -18,8 +18,9 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - run: npm run build:desktop
       - run: npm run test:desktop
-      - run: npm run portable:windows
+      - run: npx electron-builder --config desktop/electron-builder.yml --win portable --x64
       - uses: actions/upload-artifact@v4
         with:
           name: Peyvand-CRM-0.5.4-Windows-x64
