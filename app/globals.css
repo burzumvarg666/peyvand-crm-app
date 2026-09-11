@@ -168,3 +168,5 @@
  .dana-activity-row{grid-template-columns:38px 1fr auto}.dana-activity-meta{grid-column:2/4}
  .dana-info-grid{grid-template-columns:1fr}
 }
+
+.people-panel .people-primary-button{background:#17614d!important;color:#fff!important;border-color:#17614d!important;font-weight:700!important}.people-panel .people-primary-button:hover{background:#104f3e!important;color:#fff!important}.people-panel .people-primary-button *{color:#fff!important}
