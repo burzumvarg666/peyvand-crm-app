@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { labels, stageLabels, statusLabels, quoteStatusLabels, automationTriggerLabels, automationActionLabels, quoteAmounts, type Row } from './crm';
+import { labels, stageLabels, statusLabels, quoteStatusLabels, automationTriggerLabels, automationActionLabels, activityTypeLabels, activityDirectionLabels, quoteAmounts, type Row } from './crm';
 
 const amount = (n: number) => new Intl.NumberFormat('fa-IR').format(n);
 const faDate = (s: string) => s ? new Intl.DateTimeFormat('fa-IR-u-ca-persian', {dateStyle:'medium'}).format(new Date(s.length === 10 ? s + 'T12:00:00' : s)) : 'تعیین نشده';
@@ -41,9 +41,12 @@ export function buildWorkbook(items: Row[], allRows: Row[] = items) {
     } else if (kind === 'automations') {
         headers=['نام قانون','محرک','اقدام','مرحله هدف','روز','فعال','توضیحات'];
         values=items.map(({data:d})=>[d.name,automationTriggerLabels[d.automation_trigger],automationActionLabels[d.automation_action],stageLabels[d.automation_stage],d.automation_days,d.automation_enabled&&d.status==='active'?'بله':'خیر',d.description]);
+    } else if (kind === 'activities') {
+        headers=['عنوان فعالیت','نوع فعالیت','جهت','مرتبط با','تاریخ (شمسی)','ساعت شروع','ساعت پایان','محل / لینک','نتیجه','اولویت','وضعیت','مسئول','توضیحات'];
+        values=items.map(r=>[r.data.name,activityTypeLabels[r.data.activity_type],activityDirectionLabels[r.data.activity_direction],parentName(r),excelDate(r.data.due),r.data.activity_time,r.data.activity_end_time,r.data.activity_location,r.data.activity_result,r.data.priority,statusLabels[r.data.status],r.data.assignee,r.data.description]);
     } else {
-        headers = ['شناسه','نوع','عنوان','مشتری / محصول مرتبط','ایمیل','تلفن','شهر','مرحله فروش','مبلغ (تومان)','موعد (شمسی)','تاریخ شروع (شمسی)','تاریخ پایان (شمسی)','وضعیت','توضیحات'];
-        values=items.map(r=>[r.id,r.kind==='companies'&&r.data.status==='lead'?'سرنخ':labels[r.kind],r.data.name,parentName(r),r.data.email,r.data.phone,r.data.city,r.kind==='deals'?stageLabels[r.data.stage]:'',r.kind==='deals'?r.data.amount:r.kind==='proformas'?quoteAmounts(r.data).total:r.kind==='products'?r.data.price:0,excelDate(r.data.due),excelDate(r.data.start_date),excelDate(r.data.end_date),r.kind==='proformas'?quoteStatusLabels[r.data.quote_status]:statusLabels[r.data.status],r.data.description]);
+        headers = ['نوع','عنوان','مشتری / محصول مرتبط','ایمیل','تلفن','شهر','مرحله فروش','مبلغ (تومان)','موعد (شمسی)','تاریخ شروع (شمسی)','تاریخ پایان (شمسی)','وضعیت','توضیحات'];
+        values=items.map(r=>[r.kind==='companies'&&r.data.status==='lead'?'سرنخ':labels[r.kind],r.data.name,parentName(r),r.data.email,r.data.phone,r.data.city,r.kind==='deals'?stageLabels[r.data.stage]:'',r.kind==='deals'?r.data.amount:r.kind==='proformas'?quoteAmounts(r.data).total:r.kind==='products'?r.data.price:0,excelDate(r.data.due),excelDate(r.data.start_date),excelDate(r.data.end_date),r.kind==='proformas'?quoteStatusLabels[r.data.quote_status]:statusLabels[r.data.status],r.data.description]);
     }
     function addSheet(name: string, columns: string[], data: Value[][]) {
         const sheet=wb.addWorksheet(name,{views:[{state:'frozen',ySplit:1,rightToLeft:true}],pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'1:1'}});
