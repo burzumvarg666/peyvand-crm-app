@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { dataSchema, summary, exportCsv, csvCell } from '../lib/crm';
+import { buildWorkbook } from '../lib/exports';
 import { demoState } from '../lib/demo';
 test('pipeline excludes closed deals, revenue is won only, win rate uses closed deals', () => { const data = demoState(); const s = summary(data.records); assert.equal(s.pipeline, 760000000); assert.equal(s.revenue, 260000000); assert.equal(s.rate, 50); assert.equal(s.openTasks, 3); assert.equal(s.customers, 4); });
 test('empty organization produces zero finite totals', () => { assert.deepEqual(summary([]), { customers: 0, pipeline: 0, revenue: 0, rate: 0, openTasks: 0 }); });
@@ -11,3 +12,16 @@ test('input rejects negative money, invalid calendar dates and unknown payload f
 test('demo relationship graph is internal and isolated between sessions', () => { const a = demoState(), b = demoState(); for (const r of a.records)
     if (r.parent_id)
         assert.ok(a.records.some(p => p.id === r.parent_id)); assert.notEqual(a.records[0].id, b.records[0].id); });
+
+test('activity fields validate and Excel export excludes internal IDs', () => {
+  const state=demoState();
+  const activityData=dataSchema.parse({name:'جلسه مشتری',status:'open',activity_type:'meeting',activity_direction:'outbound',activity_time:'10:30',activity_end_time:'11:15',activity_location:'دفتر مشتری',activity_result:'نیاز به پیش‌فاکتور'});
+  assert.equal(activityData.activity_type,'meeting');
+  assert.equal(dataSchema.safeParse({...activityData,activity_end_time:'09:00'}).success,true);
+  const sample={...state.records[0],kind:'activities' as const,data:activityData,parent_id:state.records.find(r=>r.kind==='companies')?.id||null};
+  const wb=buildWorkbook([sample],state.records);
+  const sheet=wb.worksheets[0];
+  const headers=(sheet.getRow(1).values as unknown[]).slice(2).map(String);
+  assert.ok(headers.includes('نوع فعالیت'));
+  assert.ok(!headers.includes('شناسه'));
+});
