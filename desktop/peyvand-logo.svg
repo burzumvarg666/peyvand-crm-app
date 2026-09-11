@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<defs>
+ <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0b3f86"/><stop offset="1" stop-color="#159fd1"/></linearGradient>
+ <linearGradient id="teal" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#08718a"/><stop offset="1" stop-color="#28c5c4"/></linearGradient>
+ <linearGradient id="person" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#1689c7"/><stop offset="1" stop-color="#0b4c9b"/></linearGradient>
+</defs>
+<!-- Rounded P / connection mark -->
+<path fill="url(#blue)" d="M112 70h166c93 0 153 52 153 132 0 67-42 111-105 126l-47-55c50-5 78-30 78-70 0-43-31-67-86-67h-83v306h-76z"/>
+<!-- three connected people -->
+<circle cx="267" cy="190" r="31" fill="url(#person)"/>
+<circle cx="202" cy="215" r="25" fill="#58bfe7"/>
+<circle cx="331" cy="215" r="25" fill="#31b7c8"/>
+<path d="M218 277c3-37 22-58 49-58s47 21 50 58v27h-99z" fill="url(#person)"/>
+<path d="M158 286c2-31 18-49 44-49 13 0 24 5 32 14-9 14-14 32-14 53v10c-24 2-45 7-62 13z" fill="#4db7df"/>
+<path d="M300 251c8-9 19-14 31-14 26 0 42 18 44 49v15c-17-2-36-2-57 0v-2c0-19-6-35-18-48z" fill="#2aaebd"/>
+<!-- relationship swoosh crossing the P -->
+<path fill="url(#teal)" d="M105 389c68-73 146-104 235-99 38 2 73-4 104-22-24 52-65 82-122 89-80 10-147 32-217 83z"/>
+</svg>
