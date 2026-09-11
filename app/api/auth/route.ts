@@ -14,6 +14,18 @@ catch (e) {
 } }
 export async function POST(req: NextRequest) { try {
     const input = await body(req);
+    if (input.action === 'confirm') {
+        const parsed = z.object({refresh_token:z.string().min(1).max(8192)}).safeParse(input);
+        if (!parsed.success) throw new ApiError('لینک تأیید معتبر نیست.');
+        // Exchange with Supabase; never trust tokens or user IDs supplied by the browser.
+        const d = await sb('/auth/v1/token?grant_type=refresh_token', undefined, {
+            method:'POST', body:JSON.stringify({refresh_token:parsed.data.refresh_token})
+        });
+        if (!d.access_token || !d.refresh_token || !d.user?.email_confirmed_at)
+            throw new ApiError('تأیید ایمیل کامل نشده است.',401);
+        await setSession(d);
+        return NextResponse.json({ok:true});
+    }
     if (input.action === 'logout') {
         try {
             const { token } = await session();

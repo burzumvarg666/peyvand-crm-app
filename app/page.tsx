@@ -17,6 +17,7 @@ import {Pick,num,date,roleLabels} from '@/components/crm/shared';
 import {blank,dataSchema,exportCsv,localDay,stages,stageLabels,quoteStatusLabels,type Data,type Row,type Kind,type State} from '@/lib/crm';
 import {automationCandidates} from '@/lib/automation';
 import {demoState} from '@/lib/demo';
+import {readEmailCallback} from '@/lib/email-callback';
 
 const nav=[{id:'dashboard',label:'داشبورد',icon:LayoutDashboard},{id:'leads',label:'سرنخ‌ها',icon:Users},{id:'companies',label:'مشتریان',icon:Building2},{id:'contacts',label:'مخاطبان',icon:Users},{id:'deals',label:'پایپ‌لاین فروش',icon:Target},{id:'tasks',label:'پیگیری‌ها',icon:ClipboardList},{id:'products',label:'محصولات',icon:Package},{id:'inventory',label:'انبارداری',icon:Boxes},{id:'proformas',label:'پیش‌فاکتورها',icon:FileText},{id:'automations',label:'اتوماسیون فروش',icon:Zap},{id:'reports',label:'گزارش فروش',icon:Activity},{id:'settings',label:'تنظیمات و پشتیبان',icon:Settings2}];
 const normalize=(s:string)=>s.toLowerCase().replace(/ي/g,'ی').replace(/ك/g,'ک').replace(/[۰-۹]/g,c=>String(c.charCodeAt(0)-1776)).replace(/[٠-٩]/g,c=>String(c.charCodeAt(0)-1632)).trim();
@@ -30,7 +31,33 @@ export default function App(){
  const [authMode,setAuthMode]=useState<'login'|'signup'>('login'),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[showPassword,setShowPassword]=useState(false),[workspace,setWorkspace]=useState(''),[inviteEmail,setInviteEmail]=useState(''),[inviteRole,setInviteRole]=useState('sales');
  const busyRef=useRef(false),announced=useRef(new Set<string>());
  async function reload(){try{setState(normalizeState(await api('/api/crm')));setLoadError('');}catch(e){setLoadError((e as Error).message);throw e;}}
- useEffect(()=>{let active=true;api('/api/auth').then(async d=>{if(!active)return;setConfigured(d.configured);setDesktop(!!d.desktop);if(d.authenticated){const s=await api('/api/crm');if(active)setState(normalizeState(s));}}).catch(e=>{if(active)setLoadError(e.message);}).finally(()=>{if(active)setReady(true);});return()=>{active=false;};},[]);
+ const startup=useRef<Promise<{auth:{configured:boolean;desktop?:boolean;authenticated:boolean};state?:State;error?:string}>|null>(null);
+ useEffect(()=>{
+  let active=true;
+  if(!startup.current)startup.current=(async()=>{
+   const callback=readEmailCallback(window.location.hash,window.location.search);
+   if(callback){
+    const clean=new URL(window.location.href);clean.hash='';
+    ['error','error_code','error_description'].forEach(key=>clean.searchParams.delete(key));
+    window.history.replaceState(null,'',clean.pathname+clean.search);
+   }
+   const auth=await api('/api/auth');
+   if(callback?.error)return {auth,error:callback.error};
+   if(callback?.refreshToken){
+    try{await api('/api/auth',{action:'confirm',refresh_token:callback.refreshToken});auth.authenticated=true;}
+    catch{return {auth,error:'ورود از لینک تأیید تکمیل نشد. اگر ایمیل قبلاً تأیید شده، با ایمیل و رمز پیوند وارد شوید؛ در غیر این صورت لینک تازه درخواست کنید.'};}
+   }
+   if(auth.authenticated){
+    try{return {auth,state:normalizeState(await api('/api/crm'))};}
+    catch(e){return {auth,error:'حساب شناسایی شد، اما بارگذاری فضای کاری انجام نشد: '+(e as Error).message};}
+   }
+   return {auth};
+  })();
+  startup.current.then(d=>{if(!active)return;setConfigured(d.auth.configured);setDesktop(!!d.auth.desktop);if(d.state)setState(d.state);if(d.error)setLoadError(d.error);})
+   .catch(e=>{if(active)setLoadError(e.message);}).finally(()=>{if(active)setReady(true);});
+  return()=>{active=false;};
+ },[]);
+
  // The interval is keyed by workspace id; reload intentionally reads the latest session state.
  // eslint-disable-next-line react-hooks/exhaustive-deps
  useEffect(()=>{if(!state?.org||demo)return;const timer=setInterval(()=>{if(!busyRef.current)void reload().catch(()=>{});},45000);return()=>clearInterval(timer);},[state?.org?.id,demo]);
