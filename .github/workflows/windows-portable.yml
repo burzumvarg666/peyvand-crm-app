@@ -1,0 +1,29 @@
+name: Build Windows Portable
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portable:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build:desktop
+      - run: npm run test:desktop
+      - run: npx electron-builder --config desktop/electron-builder.yml --win portable --x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Peyvand-CRM-0.5.4-Windows-x64
+          path: windows-release/*.exe
+          if-no-files-found: error
+          retention-days: 14

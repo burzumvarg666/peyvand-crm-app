@@ -13,10 +13,10 @@ const backupSchema=z.object({format:z.literal('peyvand-desktop'),schemaVersion:z
 function valid(kind,data,parent,records,id){
  const salesError=validateSales(kind,data);if(salesError)throw new StoreError(salesError);
  if(kind==='companies'&&parent)throw new StoreError('مشتری نمی‌تواند والد داشته باشد.');
- if(kind==='tasks'&&!['open','done'].includes(data.status))throw new StoreError('وضعیت پیگیری معتبر نیست.');
+ if(['tasks','activities'].includes(kind)&&!['open','done'].includes(data.status))throw new StoreError(kind==='activities'?'وضعیت فعالیت معتبر نیست.':'وضعیت پیگیری معتبر نیست.');
  if(['companies','contacts'].includes(kind)&&!['active','lead','inactive'].includes(data.status))throw new StoreError('وضعیت مشتری معتبر نیست.');
  if(data.assignee&&data.assignee!==USER)throw new StoreError('مسئول این نسخه باید کاربر محلی باشد.');
- if(parent){const p=records.find(r=>r.id===parent);if(parent===id||!p||p.kind==='notes'||(kind==='stock_movements'?p.kind!=='products':kind!=='notes'&&p.kind!=='companies'))throw new StoreError('ارتباط رکورد معتبر نیست.');}
+ if(parent){const p=records.find(r=>r.id===parent);const allowed=kind==='stock_movements'?p?.kind==='products':kind==='activities'?['companies','contacts','deals'].includes(p?.kind||''):kind==='notes'?!!p&&p.kind!=='notes':p?.kind==='companies';if(parent===id||!allowed)throw new StoreError('ارتباط رکورد معتبر نیست.');}
 }
 export class CRMStore{
  constructor(file){
