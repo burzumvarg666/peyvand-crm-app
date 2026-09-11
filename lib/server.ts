@@ -1,11 +1,20 @@
+import {authFailure} from './auth-errors';
+import {supabaseProjectUrl,supabasePublishableKey} from './supabase-project';
+const projectUrl=process.env.SUPABASE_URL || supabaseProjectUrl;
+const projectKey=process.env.SUPABASE_ANON_KEY || supabasePublishableKey;
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-export function configured() { return !!process.env.SUPABASE_URL && !!process.env.SUPABASE_ANON_KEY; }
+export function configured() { return !!projectUrl && !!projectKey; }
 export class ApiError extends Error {
     constructor(message: string, public status = 400) { super(message); }
 }
 export async function sb(path: string, token?: string, init: RequestInit = {}) { if (!configured())
-    throw new ApiError('پایگاه داده هنوز متصل نشده است.', 503); const r = await fetch(process.env.SUPABASE_URL + path, { ...init, cache: 'no-store', headers: { apikey: process.env.SUPABASE_ANON_KEY!, 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init.headers }, signal: AbortSignal.timeout(15000) }); const text = await r.text(); const data = text ? JSON.parse(text) : null; if (!r.ok) {
+    throw new ApiError('پایگاه داده هنوز متصل نشده است.', 503); const r = await fetch(projectUrl + path, { ...init, cache: 'no-store', headers: { apikey: projectKey, 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init.headers }, signal: AbortSignal.timeout(15000) }); const text = await r.text(); const data = text ? JSON.parse(text) : null; if (!r.ok) {
+    if(path.startsWith('/auth/v1/')) {
+      const authError = authFailure(data?.code, r.status);
+      console.warn('Supabase Auth failure', {code: typeof data?.code==='string'?data.code:'unknown', status:r.status});
+      throw new ApiError(authError.message, authError.status);
+    }
     if (r.status === 401)
         throw new ApiError('نشست منقضی شده است. دوباره وارد شوید.', 401);
     if (r.status === 429)

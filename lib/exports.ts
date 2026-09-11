@@ -42,8 +42,8 @@ export function buildWorkbook(items: Row[], allRows: Row[] = items) {
         headers=['نام قانون','محرک','اقدام','مرحله هدف','روز','فعال','توضیحات'];
         values=items.map(({data:d})=>[d.name,automationTriggerLabels[d.automation_trigger],automationActionLabels[d.automation_action],stageLabels[d.automation_stage],d.automation_days,d.automation_enabled&&d.status==='active'?'بله':'خیر',d.description]);
     } else {
-        headers = ['شناسه','نوع','عنوان','مشتری / محصول مرتبط','ایمیل','تلفن','شهر','مرحله فروش','مبلغ (تومان)','موعد (شمسی)','تاریخ شروع (شمسی)','تاریخ پایان (شمسی)','وضعیت','توضیحات'];
-        values=items.map(r=>[r.id,r.kind==='companies'&&r.data.status==='lead'?'سرنخ':labels[r.kind],r.data.name,parentName(r),r.data.email,r.data.phone,r.data.city,r.kind==='deals'?stageLabels[r.data.stage]:'',r.kind==='deals'?r.data.amount:r.kind==='proformas'?quoteAmounts(r.data).total:r.kind==='products'?r.data.price:0,excelDate(r.data.due),excelDate(r.data.start_date),excelDate(r.data.end_date),r.kind==='proformas'?quoteStatusLabels[r.data.quote_status]:statusLabels[r.data.status],r.data.description]);
+        headers = ['نوع','عنوان','مشتری / محصول مرتبط','ایمیل','تلفن','شهر','مرحله فروش','مبلغ (تومان)','موعد (شمسی)','تاریخ شروع (شمسی)','تاریخ پایان (شمسی)','وضعیت','توضیحات'];
+        values=items.map(r=>[r.kind==='companies'&&r.data.status==='lead'?'سرنخ':labels[r.kind],r.data.name,parentName(r),r.data.email,r.data.phone,r.data.city,r.kind==='deals'?stageLabels[r.data.stage]:'',r.kind==='deals'?r.data.amount:r.kind==='proformas'?quoteAmounts(r.data).total:r.kind==='products'?r.data.price:0,excelDate(r.data.due),excelDate(r.data.start_date),excelDate(r.data.end_date),r.kind==='proformas'?quoteStatusLabels[r.data.quote_status]:statusLabels[r.data.status],r.data.description]);
     }
     function addSheet(name: string, columns: string[], data: Value[][]) {
         const sheet=wb.addWorksheet(name,{views:[{state:'frozen',ySplit:1,rightToLeft:true}],pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'1:1'}});
