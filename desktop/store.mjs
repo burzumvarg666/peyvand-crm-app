@@ -77,9 +77,9 @@ export class CRMStore{
    const product=this.records().find(r=>r.id===v.product_id&&r.kind==='products');
    if(!product)throw new StoreError('محصول پیدا نشد.',404);
    if(product.version!==v.version)throw new StoreError('موجودی یا محصول تغییر کرده است؛ اطلاعات را تازه کنید.',409);
-   if(product.data.status!=='active')throw new StoreError('محصول غیرفعال است.');
    const current=Math.round(product.data.stock*100),inputUnits=Math.round(v.quantity*100);
    const afterUnits=v.type==='adjustment'?inputUnits:current+(v.type==='in'?inputUnits:-inputUnits);
+   if(product.data.status!=='active'&&!(v.type==='adjustment'&&afterUnits===0))throw new StoreError('برای محصول غیرفعال فقط اصلاح موجودی به صفر مجاز است.');
    if(afterUnits<0)throw new StoreError('موجودی برای این خروج کافی نیست.');
    if(afterUnits>1e14)throw new StoreError('موجودی از محدوده مجاز بیشتر می‌شود.');
    if(afterUnits===current)throw new StoreError('موجودی تغییری نمی‌کند.');
