@@ -57,8 +57,8 @@ export default function App(){
  }
  const saveAction=(kind:Kind,data:Data,parent:string|null,row?:Row)=>run(()=>save(kind,data,parent,row));
  async function remove(row:Row){
-  if(demo){if(row.kind==='stock_movements'||(row.kind==='products'&&(row.data.stock>0||rows.some(r=>r.kind==='stock_movements'&&r.parent_id===row.id))))throw new Error('محصول دارای سابقهٔ انبار را غیرفعال کنید؛ سند انبار حذف نمی‌شود.');
-   setState(s=>s?{...s,records:s.records.filter(r=>r.id!==row.id).map(r=>r.parent_id===row.id?{...r,parent_id:null,version:r.version+1}:r)}:s);
+  if(demo){if(row.kind==='stock_movements')throw new Error('سند انبار به‌تنهایی حذف نمی‌شود.');if(row.kind==='products'){if(row.data.stock!==0)throw new Error('برای حذف محصول، ابتدا موجودی را به صفر برسانید.');if(row.data.status!=='inactive')throw new Error('برای حذف کامل محصول، ابتدا وضعیت آن را غیرفعال کنید.');}
+   setState(s=>s?{...s,records:s.records.filter(r=>r.id!==row.id&&!(row.kind==='products'&&r.kind==='stock_movements'&&r.parent_id===row.id)).map(r=>r.parent_id===row.id?{...r,parent_id:null,version:r.version+1}:r)}:s);
   }else{await api('/api/crm',{action:'delete',id:row.id,version:row.version});await reload();}
   setDeleting(null);if(detail===row.id)setDetail(null);toast.success('حذف شد');
  }
@@ -100,6 +100,6 @@ export default function App(){
  <footer className="page-footer"><span>پیوند · هر ارتباط ارزشمند است</span><span>{desktop?'نسخهٔ ویندوز ۰.۵ · ذخیرهٔ محلی':demo?'داده‌های نمایشی':'فضای کاری شما'}</span></footer></main></div>
  {editing&&<Editor key={editing.row?.id||editing.kind+editing.intent} editing={editing} rows={rows} members={state.members} busy={busy} onClose={()=>setEditing(null)} onSave={(data,parent)=>run(async()=>{await save(editing.kind,data,parent,editing.row);setEditing(null);})}/>}
  {selected&&<Detail key={selected.id} row={selected} rows={rows} members={state.members} canEdit={canEdit} busy={busy} desktop={desktop} onClose={()=>setDetail(null)} onEdit={()=>{setEditing({kind:selected.kind,row:selected});setDetail(null);}} onDelete={setDeleting} onSave={saveAction} onOpen={setDetail} onExcel={()=>downloadExcel([selected])} onPdf={()=>pdf(selected)} onNewRelated={newRelated}/>}
- <AlertDialog open={!!deleting} onOpenChange={open=>{if(!open&&!busy)setDeleting(null);}}><AlertDialogContent dir="rtl"><AlertDialogTitle>حذف {deleting?.data.name}؟</AlertDialogTitle><AlertDialogDescription>رکورد حذف می‌شود. موارد مرتبط باقی می‌مانند و ارتباط آن‌ها آزاد می‌شود. محصول دارای سابقهٔ انبار را از طریق ویرایش غیرفعال کنید.</AlertDialogDescription><AlertDialogFooter><AlertDialogCancel disabled={busy}>انصراف</AlertDialogCancel><AlertDialogAction disabled={busy} className="bg-red-700 text-white" onClick={e=>{e.preventDefault();if(deleting)void run(()=>remove(deleting));}}>حذف رکورد</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+ <AlertDialog open={!!deleting} onOpenChange={open=>{if(!open&&!busy)setDeleting(null);}}><AlertDialogContent dir="rtl"><AlertDialogTitle>حذف {deleting?.data.name}؟</AlertDialogTitle><AlertDialogDescription>{deleting?.kind==='products'?'برای حذف کامل محصول، موجودی باید صفر و وضعیت محصول غیرفعال باشد. با حذف محصول، گردش‌های انبار همان محصول نیز حذف می‌شوند.':'رکورد حذف می‌شود. موارد مرتبط باقی می‌مانند و ارتباط آن‌ها آزاد می‌شود.'}</AlertDialogDescription><AlertDialogFooter><AlertDialogCancel disabled={busy}>انصراف</AlertDialogCancel><AlertDialogAction disabled={busy} className="bg-red-700 text-white" onClick={e=>{e.preventDefault();if(deleting)void run(()=>remove(deleting));}}>حذف رکورد</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
  </SidebarProvider>;
 }
