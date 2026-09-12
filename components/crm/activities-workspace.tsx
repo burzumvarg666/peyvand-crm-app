@@ -2,17 +2,18 @@
 import {useMemo,useState} from 'react';
 import {CalendarDays,Check,ChevronDown,ChevronUp,ClipboardList,Clock,Mail,MessageCircle,MessageSquare,Phone,Plus,UserRound} from 'lucide-react';
 import {Button} from '@/components/ui/button';
-import {activityDirectionLabels,activityTypeLabels,type Data,type Row} from '@/lib/crm';
+import {activityDirectionLabels,activityTypeLabels,type Data,type Row,type State} from '@/lib/crm';
 import {date,num,priorityLabels} from './shared';
 
 type ActivityType=Data['activity_type'];
 const icon=(type:string)=>type==='call'?<Phone size={17}/>:type==='meeting'?<CalendarDays size={17}/>:type==='email'?<Mail size={17}/>:type==='sms'?<MessageSquare size={17}/>:type==='whatsapp'?<MessageCircle size={17}/>:<ClipboardList size={17}/>;
 const typeOf=(r:Row):ActivityType=>r.kind==='tasks'?'task':r.data.activity_type;
-export function ActivitiesWorkspace({rows,allRows,canEdit,busy,onOpen,onToggle,onNew}:{rows:Row[];allRows:Row[];canEdit:boolean;busy:boolean;onOpen:(id:string)=>void;onToggle:(r:Row)=>void;onNew:(type:ActivityType)=>void}){
+export function ActivitiesWorkspace({rows,allRows,members,canEdit,busy,onOpen,onToggle,onNew}:{rows:Row[];allRows:Row[];members:State['members'];canEdit:boolean;busy:boolean;onOpen:(id:string)=>void;onToggle:(r:Row)=>void;onNew:(type:ActivityType)=>void}){
  const [openExpanded,setOpenExpanded]=useState(true),[closedExpanded,setClosedExpanded]=useState(true);
  const open=useMemo(()=>rows.filter(r=>r.data.status!=='done'),[rows]);
  const closed=useMemo(()=>rows.filter(r=>r.data.status==='done'),[rows]);
  const parent=(r:Row)=>allRows.find(p=>p.id===r.parent_id);
+ const assignee=(r:Row)=>r.data.assignee?members.find(m=>m.user_id===r.data.assignee)?.email||'عضو نامشخص':'بدون مسئول';
  const ActivityRow=({r,closedMode=false}:{r:Row;closedMode?:boolean})=>{
   const t=typeOf(r),p=parent(r);
   return <article className={'dana-activity-row '+(closedMode?'closed':'')}>
@@ -23,7 +24,7 @@ export function ActivitiesWorkspace({rows,allRows,canEdit,busy,onOpen,onToggle,o
    </button>
    <div className="dana-activity-meta">
     <span><Clock size={14}/>{date(r.data.due)}{r.data.activity_time?' · '+r.data.activity_time:''}</span>
-    <span><UserRound size={14}/>{r.data.assignee||'بدون مسئول'}</span>
+    <span><UserRound size={14}/>{assignee(r)}</span>
     <span className={'priority '+r.data.priority}>{priorityLabels[r.data.priority]}</span>
    </div>
    {canEdit&&<Button size="sm" variant="ghost" disabled={busy} onClick={()=>onToggle(r)}><Check size={16}/>{closedMode?'بازگشایی':'انجام شد'}</Button>}
