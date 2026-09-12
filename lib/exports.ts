@@ -28,6 +28,7 @@ export function buildWorkbook(items: Row[], allRows: Row[] = items) {
     const wb = new ExcelJS.Workbook(); wb.creator = 'Peyvand CRM'; wb.created = new Date();
     const parentName = (row: Row) => allRows.find(p => p.id === row.parent_id)?.data.name || '';
     const kind = items.length && items.every(r => r.kind === items[0].kind) ? items[0].kind : '';
+    const activitySet = items.length > 0 && items.every(r => r.kind === 'activities' || r.kind === 'tasks');
     let headers: string[], values: Value[][];
     if (kind === 'products') {
         headers = ['نام محصول','کد محصول','دسته‌بندی','واحد','قیمت فروش (تومان)','موجودی','حداقل موجودی','وضعیت','توضیحات'];
@@ -41,9 +42,9 @@ export function buildWorkbook(items: Row[], allRows: Row[] = items) {
     } else if (kind === 'automations') {
         headers=['نام قانون','محرک','اقدام','مرحله هدف','روز','فعال','توضیحات'];
         values=items.map(({data:d})=>[d.name,automationTriggerLabels[d.automation_trigger],automationActionLabels[d.automation_action],stageLabels[d.automation_stage],d.automation_days,d.automation_enabled&&d.status==='active'?'بله':'خیر',d.description]);
-    } else if (kind === 'activities') {
+    } else if (activitySet) {
         headers=['عنوان فعالیت','نوع فعالیت','جهت','مرتبط با','تاریخ (شمسی)','ساعت شروع','ساعت پایان','محل / لینک','نتیجه','اولویت','وضعیت','مسئول','توضیحات'];
-        values=items.map(r=>[r.data.name,activityTypeLabels[r.data.activity_type],activityDirectionLabels[r.data.activity_direction],parentName(r),excelDate(r.data.due),r.data.activity_time,r.data.activity_end_time,r.data.activity_location,r.data.activity_result,r.data.priority,statusLabels[r.data.status],r.data.assignee,r.data.description]);
+        values=items.map(r=>[r.data.name,r.kind==='tasks'?'وظیفه':activityTypeLabels[r.data.activity_type],r.kind==='tasks'?'':activityDirectionLabels[r.data.activity_direction],parentName(r),excelDate(r.data.due),r.kind==='tasks'?'':r.data.activity_time,r.kind==='tasks'?'':r.data.activity_end_time,r.kind==='tasks'?'':r.data.activity_location,r.kind==='tasks'?'':r.data.activity_result,r.data.priority,statusLabels[r.data.status],r.data.assignee,r.data.description]);
     } else {
         headers = ['نوع','عنوان','مشتری / محصول مرتبط','ایمیل','تلفن','شهر','مرحله فروش','مبلغ (تومان)','موعد (شمسی)','تاریخ شروع (شمسی)','تاریخ پایان (شمسی)','وضعیت','توضیحات'];
         values=items.map(r=>[r.kind==='companies'&&r.data.status==='lead'?'سرنخ':labels[r.kind],r.data.name,parentName(r),r.data.email,r.data.phone,r.data.city,r.kind==='deals'?stageLabels[r.data.stage]:'',r.kind==='deals'?r.data.amount:r.kind==='proformas'?quoteAmounts(r.data).total:r.kind==='products'?r.data.price:0,excelDate(r.data.due),excelDate(r.data.start_date),excelDate(r.data.end_date),r.kind==='proformas'?quoteStatusLabels[r.data.quote_status]:statusLabels[r.data.status],r.data.description]);
@@ -56,7 +57,7 @@ export function buildWorkbook(items: Row[], allRows: Row[] = items) {
         sheet.eachRow((row,index)=>{row.height=index===1?38:32;row.eachCell(cell=>{cell.font={name:'Tahoma',size:11,color:{argb:'FF234438'}};cell.alignment={vertical:'middle',horizontal:'right',readingOrder:'rtl',wrapText:true};if(typeof cell.value==='number')cell.numFmt='#,##0.##';if(cell.value instanceof Date)cell.numFmt='yyyy-mm-dd';if(index===1){cell.font={name:'Tahoma',size:11,bold:true,color:{argb:'FFFFFFFF'}};cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF175747'}};}else if(index%2===0)cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF0F6F2'}};});});
         return sheet;
     }
-    addSheet(kind ? labels[kind] : 'رکوردها',['ردیف',...headers],values.map((row,index)=>[index+1,...row]));
+    addSheet(activitySet ? 'فعالیت‌ها' : kind ? labels[kind] : 'رکوردها',['ردیف',...headers],values.map((row,index)=>[index+1,...row]));
     const quotes=items.filter(r=>r.kind==='proformas');
     if(quotes.length){
         const lines: Value[][]=[];

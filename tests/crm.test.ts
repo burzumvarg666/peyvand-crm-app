@@ -25,3 +25,16 @@ test('activity fields validate and Excel export excludes internal IDs', () => {
   assert.ok(headers.includes('نوع فعالیت'));
   assert.ok(!headers.includes('شناسه'));
 });
+
+test('mixed legacy tasks and activities keep the dedicated activity Excel schema', () => {
+  const state=demoState();
+  const task=state.records.find(r=>r.kind==='tasks')!;
+  const activity={...task,id:crypto.randomUUID(),kind:'activities' as const,data:dataSchema.parse({name:'تماس جدید',status:'open',activity_type:'call',activity_direction:'outbound',due:'2026-09-12',activity_time:'11:00'})};
+  const wb=buildWorkbook([task,activity],state.records);
+  const sheet=wb.worksheets[0];
+  const headers=(sheet.getRow(1).values as unknown[]).slice(2).map(String);
+  assert.equal(sheet.name,'فعالیت‌ها');
+  assert.ok(headers.includes('نوع فعالیت'));
+  assert.ok(headers.includes('ساعت شروع'));
+  assert.ok(!headers.includes('شناسه'));
+});
