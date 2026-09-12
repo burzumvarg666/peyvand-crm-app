@@ -51,3 +51,18 @@ test('inactive zero-stock product with inventory history can be fully deleted',(
  assert.equal(s.records().some(r=>r.id===p.id),false);
  assert.equal(s.records().some(r=>r.kind==='stock_movements'&&r.parent_id===p.id),false);
 }finally{s.close();}});
+
+
+test('inactive product can be adjusted to zero before deletion',()=>{const s=create();try{
+ const p=s.save({kind:'products',data:data('محصول غیرفعال',{stock:4,min_stock:0,unit:'عدد',status:'active'}),parent_id:null});
+ let product=s.records().find(r=>r.id===p.id);
+ s.save({id:p.id,version:product.version,kind:'products',data:{...product.data,status:'inactive'},parent_id:null});
+ product=s.records().find(r=>r.id===p.id);
+ assert.throws(()=>s.inventory({product_id:p.id,type:'out',quantity:1,version:product.version,reference:'',description:''}),/فقط اصلاح موجودی به صفر/);
+ const adjusted=s.inventory({product_id:p.id,type:'adjustment',quantity:0,version:product.version,reference:'',description:'صفر کردن برای حذف'});
+ assert.equal(adjusted.stock,0);
+ product=s.records().find(r=>r.id===p.id);
+ assert.equal(product.data.stock,0);
+ s.delete({id:p.id,version:product.version});
+ assert.equal(s.records().some(r=>r.id===p.id),false);
+}finally{s.close();}});
