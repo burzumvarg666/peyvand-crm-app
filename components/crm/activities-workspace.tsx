@@ -8,12 +8,12 @@ import {date,num,priorityLabels} from './shared';
 type ActivityType=Data['activity_type'];
 const icon=(type:string)=>type==='call'?<Phone size={17}/>:type==='meeting'?<CalendarDays size={17}/>:type==='email'?<Mail size={17}/>:type==='sms'?<MessageSquare size={17}/>:type==='whatsapp'?<MessageCircle size={17}/>:<ClipboardList size={17}/>;
 const typeOf=(r:Row):ActivityType=>r.kind==='tasks'?'task':r.data.activity_type;
-export function ActivitiesWorkspace({rows,allRows,members,canEdit,busy,onOpen,onToggle,onNew}:{rows:Row[];allRows:Row[];members:State['members'];canEdit:boolean;busy:boolean;onOpen:(id:string)=>void;onToggle:(r:Row)=>void;onNew:(type:ActivityType)=>void}){
+export function ActivitiesWorkspace({rows,allRows,members=[],canEdit,busy,onOpen,onToggle,onNew}:{rows:Row[];allRows:Row[];members?:State['members'];canEdit:boolean;busy:boolean;onOpen:(id:string)=>void;onToggle:(r:Row)=>void;onNew:(type:ActivityType)=>void}){
  const [openExpanded,setOpenExpanded]=useState(true),[closedExpanded,setClosedExpanded]=useState(true);
  const open=useMemo(()=>rows.filter(r=>r.data.status!=='done'),[rows]);
  const closed=useMemo(()=>rows.filter(r=>r.data.status==='done'),[rows]);
  const parent=(r:Row)=>allRows.find(p=>p.id===r.parent_id);
- const assignee=(r:Row)=>r.data.assignee?members.find(m=>m.user_id===r.data.assignee)?.email||'عضو نامشخص':'بدون مسئول';
+ const assignee=(r:Row)=>r.data.assignee?members.find(m=>m.user_id===r.data.assignee)?.email||'مسئول تعیین‌شده':'بدون مسئول';
  const ActivityRow=({r,closedMode=false}:{r:Row;closedMode?:boolean})=>{
   const t=typeOf(r),p=parent(r);
   return <article className={'dana-activity-row '+(closedMode?'closed':'')}>
