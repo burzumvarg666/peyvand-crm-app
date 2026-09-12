@@ -35,3 +35,19 @@ test('activity cannot link to an unrelated record type',()=>{const s=create();tr
  const product=s.save({kind:'products',data:data('محصول'),parent_id:null});
  assert.throws(()=>s.save({kind:'activities',data:data('تماس',{status:'open',activity_type:'call'}),parent_id:product.id}));
 }finally{s.close();}});
+
+
+test('inactive zero-stock product with inventory history can be fully deleted',()=>{const s=create();try{
+ const p=s.save({kind:'products',data:data('محصول حذف‌شدنی',{stock:5,min_stock:0,unit:'عدد',status:'active'}),parent_id:null});
+ let product=s.records().find(r=>r.id===p.id);
+ assert.throws(()=>s.delete({id:p.id,version:product.version}),/موجودی/);
+ s.inventory({product_id:p.id,type:'adjustment',quantity:0,version:product.version,reference:'',description:'اصلاح برای حذف محصول'});
+ product=s.records().find(r=>r.id===p.id);
+ assert.throws(()=>s.delete({id:p.id,version:product.version}),/غیرفعال/);
+ s.save({id:p.id,version:product.version,kind:'products',data:{...product.data,status:'inactive'},parent_id:null});
+ product=s.records().find(r=>r.id===p.id);
+ assert.ok(s.records().some(r=>r.kind==='stock_movements'&&r.parent_id===p.id));
+ s.delete({id:p.id,version:product.version});
+ assert.equal(s.records().some(r=>r.id===p.id),false);
+ assert.equal(s.records().some(r=>r.kind==='stock_movements'&&r.parent_id===p.id),false);
+}finally{s.close();}});
