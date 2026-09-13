@@ -73,7 +73,10 @@ security definer
 set search_path=''
 as $$
 begin
- if OLD.kind='stock_movements' then raise exception 'stock_history_protected'; end if;
+ if OLD.kind='stock_movements' then
+  if pg_trigger_depth()>1 then return OLD; end if;
+  raise exception 'stock_history_protected';
+ end if;
  if OLD.kind='products' then
   if coalesce((OLD.data->>'stock')::numeric,0)<>0 then raise exception 'product_stock_not_zero'; end if;
   if coalesce(OLD.data->>'status','')<>'inactive' then raise exception 'product_not_inactive'; end if;
