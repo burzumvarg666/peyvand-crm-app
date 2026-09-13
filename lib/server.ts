@@ -1,3 +1,4 @@
+import {authFailure} from './auth-errors';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cvvqaftqzbuxctyabtgu.supabase.co';
@@ -8,6 +9,13 @@ export class ApiError extends Error {
 }
 export async function sb(path: string, token?: string, init: RequestInit = {}) { if (!configured())
     throw new ApiError('پایگاه داده هنوز متصل نشده است.', 503); const r = await fetch(SUPABASE_URL + path, { ...init, cache: 'no-store', headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init.headers }, signal: AbortSignal.timeout(15000) }); const text = await r.text(); const data = text ? JSON.parse(text) : null; if (!r.ok) {
+    if (path.startsWith('/auth/v1/')) {
+        const code=typeof data?.code==='string'?data.code:undefined;
+        const upstreamMessage=typeof data?.msg==='string'?data.msg:typeof data?.message==='string'?data.message:'';
+        console.warn('Supabase Auth failure', { code: code||'unknown', status:r.status, message:upstreamMessage.slice(0,240) });
+        const authError=authFailure(code,r.status);
+        throw new ApiError(authError.message,authError.status);
+    }
     if (r.status === 401)
         throw new ApiError('نشست منقضی شده است. دوباره وارد شوید.', 401);
     if (r.status === 429)
