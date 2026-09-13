@@ -171,4 +171,35 @@
 
 .people-panel .people-primary-button{background:#17614d!important;color:#fff!important;border-color:#17614d!important;font-weight:700!important}.people-panel .people-primary-button:hover{background:#104f3e!important;color:#fff!important}.people-panel .people-primary-button *{color:#fff!important}
 
-.password-field{display:flex;align-items:center;gap:6px}.password-field input{flex:1}.password-field button{flex:0 0 auto}
+
+
+.password-field{display:flex;align-items:center;gap:.5rem}
+.password-field input{min-width:0;flex:1}
+.password-toggle{flex-shrink:0;font-size:.8rem;color:var(--primary);padding:.5rem;border:1px solid currentColor;border-radius:.5rem;cursor:pointer;background:transparent}
+.password-toggle:hover{background:#eef5f1}
+.password-toggle:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+
+/* Polished auth layout restored from the previously approved online build. */
+.auth-shell{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.auth-main{padding:clamp(20px,4vh,40px) clamp(20px,4vw,45px);min-width:0}
+.auth-card .form-grid{margin-top:16px;gap:14px}
+.auth-mode-switch{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.auth-mode-switch button{min-height:44px;font-weight:700}
+.auth-card h2{margin:6px 0;font-size:1.5rem}
+.auth-card .demo-entry{margin-top:18px;padding-top:16px}
+.auth-card .demo-entry small{margin-top:8px}
+@media(max-width:900px){
+ .auth-shell{grid-template-columns:1fr}
+ .auth-main{order:0;align-content:center;min-height:100svh;padding:24px 20px}
+ .auth-aside{order:1;min-height:0;padding:24px;gap:16px}
+ .auth-aside h1{font-size:1.8rem;line-height:1.5;margin:8px 0}
+ .auth-aside h1 br{display:none}
+ .auth-aside p:not(.eyebrow),.auth-feature{display:none}
+}
+@media(max-height:700px){
+ .auth-aside{padding-top:24px;padding-bottom:24px}
+ .auth-aside h1{font-size:2rem}
+ .auth-main{padding-top:16px;padding-bottom:16px}
+ .auth-card .form-grid{gap:10px;margin-top:10px}
+ .auth-card .demo-entry{margin-top:12px;padding-top:12px}
+}
