@@ -170,3 +170,5 @@
 }
 
 .people-panel .people-primary-button{background:#17614d!important;color:#fff!important;border-color:#17614d!important;font-weight:700!important}.people-panel .people-primary-button:hover{background:#104f3e!important;color:#fff!important}.people-panel .people-primary-button *{color:#fff!important}
+
+.password-field{display:flex;align-items:center;gap:6px}.password-field input{flex:1}.password-field button{flex:0 0 auto}
