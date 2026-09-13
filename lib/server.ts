@@ -1,11 +1,13 @@
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-export function configured() { return !!process.env.SUPABASE_URL && !!process.env.SUPABASE_ANON_KEY; }
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cvvqaftqzbuxctyabtgu.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_Ig_H12X9bI-T8jLyEYm7-Q_Soe_fAhs';
+export function configured() { return !!SUPABASE_URL && !!SUPABASE_ANON_KEY; }
 export class ApiError extends Error {
     constructor(message: string, public status = 400) { super(message); }
 }
 export async function sb(path: string, token?: string, init: RequestInit = {}) { if (!configured())
-    throw new ApiError('پایگاه داده هنوز متصل نشده است.', 503); const r = await fetch(process.env.SUPABASE_URL + path, { ...init, cache: 'no-store', headers: { apikey: process.env.SUPABASE_ANON_KEY!, 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init.headers }, signal: AbortSignal.timeout(15000) }); const text = await r.text(); const data = text ? JSON.parse(text) : null; if (!r.ok) {
+    throw new ApiError('پایگاه داده هنوز متصل نشده است.', 503); const r = await fetch(SUPABASE_URL + path, { ...init, cache: 'no-store', headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init.headers }, signal: AbortSignal.timeout(15000) }); const text = await r.text(); const data = text ? JSON.parse(text) : null; if (!r.ok) {
     if (r.status === 401)
         throw new ApiError('نشست منقضی شده است. دوباره وارد شوید.', 401);
     if (r.status === 429)
