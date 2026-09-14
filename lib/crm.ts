@@ -10,7 +10,7 @@ export const automationTriggerLabels = { stage_change: 'تغییر مرحله ف
 export const automationActions = ['create_task', 'notify'] as const;
 export const automationActionLabels = { create_task: 'ساخت پیگیری', notify: 'یادآوری داخل برنامه' };
 export const statusLabels: Record<string, string> = { active: 'فعال', lead: 'سرنخ', inactive: 'غیرفعال', open: 'باز', done: 'انجام‌شده' };
-export const labels: Record<Kind, string> = { companies: 'مشتریان', contacts: 'مخاطبان', deals: 'فرصت‌های فروش', tasks: 'پیگیری‌ها', notes: 'یادداشت‌ها', products: 'محصولات', proformas: 'پیش‌فاکتورها', automations: 'اتوماسیون فروش', stock_movements: 'گردش انبار' };
+export const labels: Record<Kind, string> = { companies: 'مشتریان', contacts: 'مخاطبان', deals: 'فرصت‌های فروش', tasks: 'فعالیت‌ها', notes: 'یادداشت‌ها', products: 'محصولات', proformas: 'پیش‌فاکتورها', automations: 'اتوماسیون فروش', stock_movements: 'گردش انبار' };
 const proformaItemSchema = z.object({ product_id: z.string().uuid(), name: z.string().trim().min(1).max(160), unit: z.string().trim().max(30).default('عدد'), quantity: z.number().finite().positive().max(1e6), unit_price: z.number().finite().min(0).max(1e15) }).strict();
 export type ProformaItem = z.infer<typeof proformaItemSchema>;
 const date = z.string().refine(s => s === '' || (/^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s)) && new Date(s).toISOString().slice(0, 10) === s), 'تاریخ معتبر نیست');
@@ -29,7 +29,15 @@ export const salesSchema = z.object({
     automation_stage: z.enum(stages).default('qualified'), automation_days: z.number().int().min(0).max(365).default(1),
     automation_enabled: z.boolean().default(true), automation_key: z.string().max(200).default('')
 });
-export const dataSchema = coreDataSchema.merge(salesSchema).strict();
+export const activityTypeLabels = {task:'وظیفه',call:'تماس',meeting:'جلسه',message:'پیام',followup:'پیگیری',visit:'بازدید',other:'سایر'};
+export const activityStateLabels = {new:'جدید',in_progress:'در حال انجام',completed:'انجام‌شده',cancelled:'لغوشده'};
+const time = z.string().regex(/^$|^([01]\d|2[0-3]):[0-5]\d$/);
+export const dataSchema = coreDataSchema.merge(salesSchema).extend({
+ activity_type:z.enum(['task','call','meeting','message','followup','visit','other']).default('task'),
+ activity_state:z.enum(['new','in_progress','completed','cancelled']).default('new'),
+ start_time:time.default(''),end_time:time.default(''),progress:z.number().int().min(0).max(100).default(0),
+ reminder_enabled:z.boolean().default(false),reminder_date:date.default(''),reminder_time:time.default(''),
+}).strict();
 export type Data = z.infer<typeof dataSchema>;
 export type Row = {
     id: string;
@@ -85,6 +93,11 @@ export function quoteAmounts(data: Pick<Data, 'items' | 'discount_percent' | 'ta
 }
 export const proformaTotal = (data: Data) => quoteAmounts(data).total;
 export function validateSales(kind: Kind, data: Data) {
+    if(kind==='tasks') {
+      const start=data.start_date||data.due, end=data.end_date;
+      if(end && start && end+'T'+(data.end_time||'23:59') < start+'T'+(data.start_time||'00:00')) return 'پایان فعالیت نمی‌تواند قبل از شروع باشد.';
+      if(data.reminder_enabled && (!data.reminder_date || !data.reminder_time)) return 'تاریخ و ساعت یادآوری را مشخص کنید.';
+    }
     if (['products', 'automations'].includes(kind) && !['active', 'inactive'].includes(data.status)) return 'وضعیت معتبر نیست.';
     if (kind === 'products' && [data.stock,data.min_stock].some(n=>Math.abs(n*100-Math.round(n*100))>0.0001)) return 'موجودی را حداکثر با دو رقم اعشار وارد کنید.';
     if (kind === 'proformas') {

@@ -1,6 +1,6 @@
 {
   "name": "peyvand-crm",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -67,6 +67,7 @@
     "drizzle-kit": "0.31.10",
     "electron": "44.2.0",
     "electron-builder": "26.0.12",
+    "esbuild": "0.28.0",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
     "react-server-dom-webpack": "19.2.6",

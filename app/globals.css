@@ -122,3 +122,5 @@
  .auth-card .form-grid{gap:10px;margin-top:10px}
  .auth-card .demo-entry{margin-top:12px;padding-top:12px}
 }
+
+.activities-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:20px}.activity-views{display:flex;flex-direction:column;gap:8px;align-self:start}.activity-views h3{margin-top:16px;font-weight:700}.activities-layout progress{width:70px;accent-color:#175d4b}.activities-layout .records-panel{min-width:0;overflow:auto;padding:20px}@media(max-width:900px){.activities-layout{grid-template-columns:1fr}}
