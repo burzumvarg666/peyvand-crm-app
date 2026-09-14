@@ -203,3 +203,5 @@
  .auth-card .form-grid{gap:10px;margin-top:10px}
  .auth-card .demo-entry{margin-top:12px;padding-top:12px}
 }
+
+.brand-mark:has(img){background:transparent;padding:0;width:48px;height:48px;border-radius:0}.brand img{display:block;object-fit:contain;flex-shrink:0}
