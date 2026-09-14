@@ -4,6 +4,25 @@ import { session, rest, body, fail, ApiError } from '@/lib/server';
 import { dataSchema, kinds, validateSales } from '@/lib/crm';
 export const dynamic = 'force-dynamic';
 const uuid = z.string().uuid();
+const importRecord = z.object({
+    id: uuid,
+    org_id: uuid.optional(),
+    kind: z.enum(kinds),
+    parent_id: uuid.nullable(),
+    data: dataSchema,
+    created_at: z.string().datetime(),
+    updated_at: z.string().datetime(),
+    version: z.number().int().positive()
+}).strict();
+const importEnvelope = z.object({
+    format: z.enum(['peyvand-desktop', 'peyvand-online']),
+    schemaVersion: z.literal(1),
+    exportedAt: z.string().datetime().optional(),
+    workspace: z.string().trim().min(1).max(100).nullable().optional(),
+    records: z.array(importRecord).max(100000),
+    audit: z.array(z.unknown()).max(200000).optional(),
+    automationKeys: z.array(z.string().max(200)).max(200000).optional()
+}).strict();
 const inventoryInput = z.object({
     product_id: uuid,
     type: z.enum(['in','out','adjustment']),
@@ -34,7 +53,8 @@ export async function GET() { try {
 } catch (e) { return fail(e); } }
 export async function POST(req: NextRequest) {
     try {
-        const input = await body(req);
+        // Imports can contain many records; the envelope is still bounded to prevent oversized requests.
+        const input = await body(req, 20 * 1024 * 1024);
         const { token, user } = await session();
         if (input.action === 'workspace') {
             const p = z.object({ name: z.string().trim().min(1).max(100) }).safeParse(input);
@@ -45,6 +65,16 @@ export async function POST(req: NextRequest) {
         const m = await membership(token, user.id);
         if (!m) throw new ApiError('فضای کاری یافت نشد.', 404);
         if (m.role === 'viewer') throw new ApiError('دسترسی شما فقط مشاهده است.', 403);
+
+        if (input.action === 'import') {
+            const parsed = importEnvelope.safeParse(input.backup);
+            if (!parsed.success) throw new ApiError('فایل پشتیبان معتبر نیست یا نسخهٔ آن پشتیبانی نمی‌شود.');
+            const result = await rest('rpc/crm_import_backup', token, {
+                method: 'POST',
+                body: JSON.stringify({ payload: parsed.data })
+            });
+            return NextResponse.json({ ok: true, imported: Number(result?.imported || 0) });
+        }
 
         if (input.action === 'save') {
             const p = z.object({ kind: z.enum(kinds), data: dataSchema, parent_id: uuid.nullable(), id: uuid.optional(), version: z.number().int().positive().optional() }).safeParse(input);

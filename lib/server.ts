@@ -49,7 +49,7 @@ export async function session() { const c = await cookies(); let token = c.get('
     token = d.access_token;
     return { token: token!, user: await sb('/auth/v1/user', token) };
 } throw new ApiError('ابتدا وارد حساب شوید.', 401); }
-export async function body(req: NextRequest) { const origin = req.headers.get('origin'); let originUrl: URL | null = null; try { originUrl = origin ? new URL(origin) : null; } catch { /* Reject malformed origins. */ }
+export async function body(req: NextRequest, maxBytes = 65536) { const origin = req.headers.get('origin'); let originUrl: URL | null = null; try { originUrl = origin ? new URL(origin) : null; } catch { /* Reject malformed origins. */ }
 // Browser Host and Origin must agree; Next may internally normalize req.url to localhost.
 if (!originUrl || !['http:', 'https:'].includes(originUrl.protocol) || originUrl.host !== req.headers.get('host'))
     throw new ApiError('مبدأ درخواست معتبر نیست.', 403); if (!req.headers.get('content-type')?.startsWith('application/json'))
@@ -59,7 +59,7 @@ if (!originUrl || !['http:', 'https:'].includes(originUrl.protocol) || originUrl
     if (done)
         break;
     size += value.length;
-    if (size > 65536) {
+    if (size > maxBytes) {
         await reader.cancel();
         throw new ApiError('درخواست بیش از حد بزرگ است.', 413);
     }

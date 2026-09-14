@@ -21,3 +21,33 @@ button,input,select,textarea{font-size:.9rem}button:focus-visible{outline:3px so
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:0.01ms!important;transition-duration:0.01ms!important;scroll-behavior:auto!important}}
 
 .deal-due{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .65rem;border:1px solid #d4e2de;background:#f3f8f6;border-radius:10px;padding:.6rem .7rem;font-size:.875rem;line-height:1.7;margin-top:.4rem}.deal-due>span{color:#526b63}.deal-due time{font-weight:600;color:#173f34}.deal-due strong{font-size:.875rem;flex-basis:100%;font-weight:500}.deal-due.late{background:#fff1f0;border-color:#efc2bc;color:#9b3026}.deal-due.soon{background:#fff8e7;border-color:#ecd6a1;color:#805a0d}.deal-due.upcoming{color:#175747}.deal-due.unset,.deal-due.closed{color:#526b63}.deal-card-footer>.deal-due{flex:1}.deal-card-footer{align-items:center}
+/* Keep the lead filter compact and the account profile independent of generic sheets. */
+.records-local-filter{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;min-width:0}
+.records-local-filter>.pick{width:250px;max-width:100%;min-width:0;flex:0 1 250px}
+.records-local-filter>.pick [data-slot=select-value]{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.settings-transfer{display:grid;gap:10px;margin-top:24px;padding-top:20px;border-top:1px solid #e5ece8}
+.settings-transfer h3{margin:0;font-size:.96rem;color:#345b4b}
+.settings-transfer .settings-copy{line-height:2;font-size:.78rem}
+.detail-sheet.dana-account-sheet{width:min(1180px,96vw)!important;max-width:96vw!important;padding:0!important;overflow-x:hidden;container-type:inline-size}
+.dana-account-layout{min-width:0;flex:1;grid-template-columns:190px minmax(0,1fr)}
+.dana-account-content{align-content:start;padding-top:48px}
+.dana-account-hero{flex-wrap:wrap;min-width:0}
+.dana-account-logo{flex:0 0 50px}
+.dana-account-hero>div:not(.dana-account-actions){flex:1 1 180px;min-width:0}
+.dana-account-hero h2,.dana-account-hero p{overflow-wrap:anywhere;line-height:1.9}
+.dana-account-actions{flex:0 0 auto;flex-wrap:wrap;margin-inline-start:auto}
+.dana-account-actions .danger{color:#a32626;background:#fff1f1;border:1px solid #e8baba}
+.dana-info-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.dana-info-grid>div{min-width:0;grid-template-columns:minmax(0,1fr);gap:5px;text-align:start}
+.dana-info-grid b{min-width:0;line-height:1.9;unicode-bidi:plaintext}
+.dana-related-head,.dana-quick-actions{flex-wrap:wrap;gap:8px}
+@container(max-width:760px){
+ .dana-account-layout{grid-template-columns:minmax(0,1fr)}
+ .dana-account-nav{display:none}
+ .dana-account-content{padding:44px 16px 20px}
+}
+@container(max-width:480px){
+ .dana-info-grid{grid-template-columns:minmax(0,1fr)}
+ .dana-account-actions{flex-basis:100%;margin:0}
+ .dana-note-form{grid-template-columns:minmax(0,1fr)}
+}
