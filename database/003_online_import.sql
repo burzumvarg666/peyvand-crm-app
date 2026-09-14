@@ -58,8 +58,18 @@ begin
 
  if exists(select 1 from pg_temp.crm_import_rows group by id having count(*)>1)
    then raise exception 'duplicate_import_ids'; end if;
- if exists(select 1 from public.crm_records e join pg_temp.crm_import_rows i on i.id=e.id)
-   then raise exception 'import_id_conflict'; end if;
+ -- Existing rows in this workspace are kept as-is and treated as already available
+ -- parents. A UUID collision with another workspace is still rejected.
+ if exists(
+   select 1 from public.crm_records e
+   join pg_temp.crm_import_rows i on i.id=e.id
+   where e.org_id<>target_org
+ ) then raise exception 'import_id_conflict'; end if;
+ update pg_temp.crm_import_rows i set inserted=true
+ where exists(
+   select 1 from public.crm_records e
+   where e.id=i.id and e.org_id=target_org
+ );
  if exists(select 1 from pg_temp.crm_import_rows where id=parent_id)
    then raise exception 'invalid_parent'; end if;
 
