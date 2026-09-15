@@ -121,7 +121,7 @@ export default function App(){
  function pdf(row:Row){
   if(window.peyvand){void run(async()=>{const result=await window.peyvand!.exportPdf(row.id);if(!result.canceled)toast.success('فایل PDF ذخیره شد');});return;}
   const popup=window.open('','_blank');if(!popup){toast.error('اجازهٔ بازشدن پنجرهٔ چاپ را در مرورگر فعال کنید.');return;}
-  void run(async()=>{try{const {proformaHtml}=await import('@/lib/exports');popup.document.write(proformaHtml(row,rows,state!.org!.name));popup.document.close();await popup.document.fonts.ready;popup.focus();popup.print();}catch(e){popup.close();throw e;}});
+  void run(async()=>{try{const {proformaHtml}=await import('@/lib/exports');popup.document.write(proformaHtml(row,rows,state!.org!.name));popup.document.close();if(popup.document.readyState!=='complete')await new Promise<void>(resolve=>popup.addEventListener('load',()=>resolve(),{once:true}));await popup.document.fonts.ready;popup.focus();popup.print();}catch(e){popup.close();throw e;}});
  }
  async function signIn(e:FormEvent){e.preventDefault();await run(async()=>{const d=await api('/api/auth',{action:authMode,email,password});if(d.confirmation){toast.success('اگر این ایمیل حساب جدید باشد، پیوند تأیید برای آن ارسال می‌شود. اگر قبلاً ثبت‌نام کرده‌اید، از بخش ورود استفاده کنید.');setAuthMode('login');setShowPassword(false);return;}await reload();setPassword('');});}
  async function resendConfirmation(){await run(async()=>{if(!email.trim())throw new Error('ابتدا ایمیل را وارد کنید.');await api('/api/auth',{action:'resend',email});toast.success('درخواست ارسال مجدد به Supabase فرستاده شد. صندوق ورودی و Spam را بررسی کنید.');});}
