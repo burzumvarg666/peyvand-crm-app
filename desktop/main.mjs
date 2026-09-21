@@ -1,11 +1,12 @@
-import {app,BrowserWindow,Menu,dialog,session,ipcMain} from 'electron';
+import {app,BrowserWindow,Menu,dialog,session,ipcMain,shell} from 'electron';
 import {join} from 'node:path';
 import {mkdir,writeFile,readFile,rename,stat} from 'node:fs/promises';
 import {randomBytes} from 'node:crypto';
+import {BackupManager} from './backups.mjs';
 import {CRMStore} from './store.mjs';
 import {startServer} from './server.mjs';
 app.setName('Peyvand CRM');
-let win,store,server,closing=false,timer,pdfBusy=false;
+let win,store,server,backups,closing=false,timer,pdfBusy=false;
 const token=randomBytes(32).toString('hex');
 const single=app.requestSingleInstanceLock();
 if(!single)app.quit();
@@ -13,6 +14,13 @@ app.on('second-instance',()=>{if(win){if(win.isMinimized())win.restore();win.foc
 async function atomicWrite(file,data){const tmp=file+'.'+randomBytes(6).toString('hex')+'.tmp';await writeFile(tmp,data,{flag:'wx'});await rename(tmp,file);}
 async function backup(){const r=await dialog.showSaveDialog(win,{title:'ذخیره پشتیبان پیوند',defaultPath:'Peyvand-Backup-'+new Date().toISOString().slice(0,10)+'.json',filters:[{name:'Peyvand backup',extensions:['json']}]});if(r.canceled||!r.filePath)return;await atomicWrite(r.filePath,JSON.stringify(store.exportBackup(),null,2));await dialog.showMessageBox(win,{type:'info',title:'پشتیبان‌گیری',message:'فایل پشتیبان با موفقیت ذخیره شد.'});}
 async function restore(){const r=await dialog.showOpenDialog(win,{title:'بازیابی پشتیبان پیوند',properties:['openFile'],filters:[{name:'Peyvand backup',extensions:['json']}]});if(r.canceled)return;const file=r.filePaths[0];if((await stat(file)).size>100*1024*1024)throw new Error('حجم فایل بیش از حد مجاز است.');let data;try{data=JSON.parse(await readFile(file,'utf8'));}catch{throw new Error('فایل پشتیبان خوانا نیست.');}store.validateBackup(data);const confirm=await dialog.showMessageBox(win,{type:'warning',title:'بازیابی پشتیبان',message:'اطلاعات فعلی با این پشتیبان جایگزین شود؟',detail:'قبل از جایگزینی، یک نسخه از اطلاعات فعلی در پوشه پشتیبان برنامه نگهداری می‌شود.',buttons:['انصراف','بازیابی'],defaultId:0,cancelId:0,noLink:true});if(confirm.response!==1)return;const folder=join(app.getPath('userData'),'backups');await mkdir(folder,{recursive:true});await atomicWrite(join(folder,'before-restore-'+Date.now()+'.json'),JSON.stringify(store.exportBackup()));store.restoreBackup(data);win.reload();await dialog.showMessageBox(win,{type:'info',message:'بازیابی با موفقیت انجام شد.'});}
+async function importBackup(){
+ const r=await dialog.showOpenDialog(win,{title:'درون‌ریزی پشتیبان آفلاین پیوند',properties:['openFile'],filters:[{name:'Peyvand backup',extensions:['json']}]});if(r.canceled)return;
+ if((await stat(r.filePaths[0])).size>100*1024*1024)throw new Error('فایل بیش از حد بزرگ است.');
+ const data=JSON.parse(await readFile(r.filePaths[0],'utf8'));const b=store.validateBackup(data),ids=new Set(store.records().map(r=>r.id));const count=b.records.filter(r=>!ids.has(r.id)).length;
+ const answer=await dialog.showMessageBox(win,{type:'question',title:'بررسی درون‌ریزی',message:count+' رکورد جدید وارد شود؟',detail:'اطلاعات فعلی حفظ می‌شود. شناسه‌های موجود وارد نمی‌شوند. موارد مشابه با شناسه متفاوت پس از ورود در بخش موارد مشابه قابل بررسی هستند.',buttons:['انصراف','درون‌ریزی'],defaultId:0,cancelId:0,noLink:true});if(answer.response!==1)return;
+ backups.snapshot('before-import');await atomicWrite(join(backups.folder,'import-source-'+Date.now()+'.json'),JSON.stringify(data));const result=store.importBackup(data);win.reload();await dialog.showMessageBox(win,{type:'info',message:result.imported+' رکورد وارد شد؛ '+result.skipped+' شناسه موجود کنار گذاشته شد.'});
+}
 async function guarded(fn){try{await fn();}catch(e){await dialog.showMessageBox(win,{type:'error',title:'پیوند',message:e.message||'عملیات انجام نشد.'});}}
 function authorize(event){if(!win||event.sender!==win.webContents||event.senderFrame!==win.webContents.mainFrame||new URL(event.senderFrame.url).origin!==server.origin)throw new Error('درخواست معتبر نیست.');}
 async function exportPdf(id){
@@ -37,9 +45,10 @@ if(single)app.whenReady().then(async()=>{
  try{
   const dataDir=app.getPath('userData');await mkdir(dataDir,{recursive:true});
   store=new CRMStore(join(dataDir,'peyvand.sqlite'));
+  backups=new BackupManager(store,join(dataDir,'backups'));backups.daily();
   store.runAutomations();
-  timer=setInterval(()=>{try{store.runAutomations();}catch(e){console.error('Automation run failed:',e.message);}},60000);
-  server=await startServer({store,ui:join(app.getAppPath(),'ui'),token});
+  timer=setInterval(()=>{try{backups.daily();store.runAutomations();}catch(e){console.error('Automation run failed:',e.message);}},60000);
+  server=await startServer({store,ui:join(app.getAppPath(),'ui'),token,backups});
   const ses=session.fromPartition('peyvand-local');
   await ses.cookies.set({url:server.origin,name:'peyvand_desktop',value:token,httpOnly:true,sameSite:'strict',path:'/',secure:false});
   ses.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
@@ -48,6 +57,11 @@ if(single)app.whenReady().then(async()=>{
   win=new BrowserWindow({width:1480,height:960,minWidth:860,minHeight:640,title:'پیوند CRM',icon:join(app.getAppPath(),'icon.ico'),backgroundColor:'#f3f6f4',show:false,webPreferences:{session:ses,preload:join(app.getAppPath(),'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true,webSecurity:true,spellcheck:false}});
   ipcMain.handle('peyvand:export-pdf',async(event,id)=>{authorize(event);return exportPdf(id);});
   ipcMain.handle('peyvand:backup',async event=>{authorize(event);return backup();});
+  ipcMain.handle('peyvand:get-preference',(event,key)=>{authorize(event);return store.getPreference(key);});
+  ipcMain.handle('peyvand:set-preference',(event,key,value)=>{authorize(event);return store.setPreference(key,value);});
+  ipcMain.handle('peyvand:import-backup',async event=>{authorize(event);return importBackup();});
+  ipcMain.handle('peyvand:backup-status',event=>{authorize(event);return backups.status();});
+  ipcMain.handle('peyvand:backup-folder',async event=>{authorize(event);const error=await shell.openPath(backups.folder);if(error)throw new Error(error);});
   ipcMain.handle('peyvand:restore',async event=>{authorize(event);return restore();});
   win.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   win.webContents.on('will-navigate',(event,url)=>{if(new URL(url).origin!==server.origin)event.preventDefault();});

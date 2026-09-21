@@ -61,6 +61,7 @@ export type Audit = {
 };
 export type State = {
     desktop?: boolean;
+    platformAdmin?: boolean;
     notifications?: { key: string; label: string }[];
     org: {
         id: string;

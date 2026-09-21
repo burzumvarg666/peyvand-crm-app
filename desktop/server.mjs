@@ -5,7 +5,7 @@ import {timingSafeEqual} from 'node:crypto';
 import {StoreError} from './store.mjs';
 import {proformaHtml} from '../lib/proforma.ts';
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.woff2':'font/woff2','.png':'image/png','.ico':'image/x-icon'};
-export async function startServer({store,ui,token}){
+export async function startServer({store,ui,token,backups}){
  let origin='';
  const server=createServer(async(req,res)=>{
   function json(value,status=200){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(value));}
@@ -30,8 +30,10 @@ export async function startServer({store,ui,token}){
     const chunks=[];let total=0;for await(const chunk of req){total+=chunk.length;if(total>65536)throw new StoreError('درخواست بیش از حد بزرگ است.',413);chunks.push(chunk);}
     let body;try{body=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw new StoreError('درخواست معتبر نیست.');}
     if(!body||typeof body!=='object')throw new StoreError('درخواست معتبر نیست.');
+    if(['save','delete','inventory','merge'].includes(body.action))backups?.snapshot('before-'+body.action);
     if(body.action==='workspace')store.createWorkspace(body.name);
     else if(body.action==='save')store.save(body);
+    else if(body.action==='merge')store.merge(body);
     else if(body.action==='delete')store.delete(body);
     else if(body.action==='inventory')store.inventory(body);
     else if(body.action==='automations')store.runAutomations();

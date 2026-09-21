@@ -34,6 +34,9 @@ export class CRMStore{
  }
  transaction(fn){this.db.exec('BEGIN IMMEDIATE');try{const r=fn();this.db.exec('COMMIT');return r;}catch(e){this.db.exec('ROLLBACK');throw e;}}
  records(){return this.db.prepare('SELECT * FROM records ORDER BY created_at DESC,id').all().map(r=>({...r,data:dataSchema.parse(JSON.parse(r.data))}));}
+ preferenceKey(key){if(typeof key!=='string'||!/^peyvand-filters:[a-zA-Z0-9:-]{1,180}$/.test(key))throw new StoreError('کلید تنظیمات معتبر نیست.');return 'preference:'+key;}
+ getPreference(key){const value=this.db.prepare('SELECT value FROM meta WHERE key=?').get(this.preferenceKey(key))?.value;return value?JSON.parse(value):[];}
+ setPreference(key,value){const checked=z.array(z.object({name:z.string().max(50),query:z.string().max(1000),industry:z.string().max(100),filter:z.string().max(50),city:z.string().max(100),from:z.string().max(10),to:z.string().max(10)}).strict()).max(20).safeParse(value);if(!checked.success)throw new StoreError('فیلتر ذخیره‌شده معتبر نیست.');this.db.prepare('INSERT INTO meta(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(this.preferenceKey(key),JSON.stringify(checked.data));}
  workspace(){return this.db.prepare("SELECT value FROM meta WHERE key='workspace'").get()?.value||null;}
  state(){const name=this.workspace();return {desktop:true,org:name?{id:ORG,name}:null,user:{id:USER,email:'کاربر این رایانه'},role:'admin',records:this.records(),members:[{user_id:USER,email:'کاربر این رایانه',role:'admin'}],invites:[],audit:this.db.prepare('SELECT * FROM audit ORDER BY created_at DESC,id DESC LIMIT 100').all()};}
  createWorkspace(name){const p=z.string().trim().min(1).max(100).safeParse(name);if(!p.success)throw new StoreError('نام شرکت معتبر نیست.');if(this.workspace())throw new StoreError('فضای کاری قبلاً ساخته شده است.',409);this.db.prepare("INSERT INTO meta(key,value) VALUES ('workspace',?)").run(p.data);}
@@ -60,6 +63,21 @@ export class CRMStore{
    const next={id,org_id:ORG,kind:v.kind,data:v.data,parent_id:v.parent_id,created_at:old?.created_at||now,updated_at:now,version:old?old.version+1:1};
    this.applyAutomations(localDay(),{previous:old||undefined,next});
    return {id};
+  });
+ }
+ merge(input){
+  const p=z.object({keep:uuid,source:uuid,keepVersion:z.number().int().positive(),sourceVersion:z.number().int().positive()}).safeParse(input);
+  if(!p.success||p.data.keep===p.data.source)throw new StoreError('انتخاب رکوردها معتبر نیست.');
+  return this.transaction(()=>{
+   const all=this.records(),v=p.data,a=all.find(r=>r.id===v.keep),b=all.find(r=>r.id===v.source);
+   if(!a||!b||a.kind!==b.kind||!['companies','contacts'].includes(a.kind))throw new StoreError('این رکوردها قابل ادغام نیستند.');
+   if(a.version!==v.keepVersion||b.version!==v.sourceVersion)throw new StoreError('اطلاعات تغییر کرده است؛ دوباره بررسی کنید.',409);
+   const data={...a.data};for(const key of ['phone','email','industry','city','position','website','address','lead_source','next_step'])if(!data[key])data[key]=b.data[key];
+   const now=new Date().toISOString(),archive=JSON.stringify(b,null,2);
+   this.db.prepare('UPDATE records SET data=?,version=version+1,updated_at=? WHERE id=?').run(JSON.stringify(data),now,a.id);
+   this.db.prepare('UPDATE records SET parent_id=?,version=version+1,updated_at=? WHERE parent_id=?').run(a.id,now,b.id);
+   for(let offset=0;offset<archive.length;offset+=8000){const note={...blank(),name:'اطلاعات کامل پیش از ادغام — '+(offset/8000+1),description:archive.slice(offset,offset+8000)};const id=randomUUID();this.db.prepare('INSERT INTO records VALUES (?,?,?,?,?,?,?,?)').run(id,ORG,'notes',a.id,JSON.stringify(note),now,now,1);this.log(id,'INSERT',note.name);}
+   this.db.prepare('DELETE FROM records WHERE id=?').run(b.id);this.log(a.id,'UPDATE',('ادغام: '+a.data.name).slice(0,160));this.log(b.id,'DELETE',b.data.name);return {id:a.id};
   });
  }
  insertMovement(productId,product,type,quantity,after,reference,description){
@@ -100,6 +118,18 @@ export class CRMStore{
  delete(input){const p=z.object({id:uuid,version:z.number().int().positive()}).safeParse(input);if(!p.success)throw new StoreError('شناسه معتبر نیست.');return this.transaction(()=>{const old=this.db.prepare('SELECT * FROM records WHERE id=?').get(p.data.id);if(!old||old.version!==p.data.version)throw new StoreError('اطلاعات تغییر کرده است. صفحه را تازه کنید.',409);if(old.kind==='stock_movements')throw new StoreError('سند انبار به‌تنهایی حذف نمی‌شود؛ از حذف کامل محصول یا اصلاح موجودی استفاده کنید.');const oldData=JSON.parse(old.data);if(old.kind==='products'){if(oldData.stock!==0)throw new StoreError('برای حذف محصول، ابتدا موجودی را از بخش انبارداری به صفر برسانید.');if(oldData.status!=='inactive')throw new StoreError('برای حذف کامل محصول، ابتدا وضعیت آن را غیرفعال کنید.');const movements=this.db.prepare("SELECT id,data FROM records WHERE kind='stock_movements' AND parent_id=?").all(old.id);for(const movement of movements){this.db.prepare('DELETE FROM records WHERE id=?').run(movement.id);this.log(movement.id,'DELETE',JSON.parse(movement.data).name);} }const children=this.db.prepare("SELECT id,data FROM records WHERE parent_id=? AND kind!='stock_movements'").all(old.id);this.db.prepare("UPDATE records SET parent_id=NULL,version=version+1,updated_at=? WHERE parent_id=? AND kind!='stock_movements'").run(new Date().toISOString(),old.id);for(const child of children)this.log(child.id,'UPDATE',JSON.parse(child.data).name);this.db.prepare('DELETE FROM records WHERE id=?').run(old.id);this.log(old.id,'DELETE',oldData.name);});}
  exportBackup(){return {format:'peyvand-desktop',schemaVersion:1,exportedAt:new Date().toISOString(),workspace:this.workspace(),records:this.records(),audit:this.db.prepare('SELECT * FROM audit ORDER BY created_at,id').all(),automationKeys:this.db.prepare('SELECT key FROM automation_keys ORDER BY key').all().map(r=>r.key)};}
  validateBackup(data){const parsed=backupSchema.safeParse(data);if(!parsed.success)throw new StoreError('فایل پشتیبان معتبر نیست یا نسخه آن پشتیبانی نمی‌شود.');const b=parsed.data;const ids=new Set(b.records.map(r=>r.id));if(ids.size!==b.records.length||new Set(b.audit.map(a=>a.id)).size!==b.audit.length||(!b.workspace&&b.records.length))throw new StoreError('فایل پشتیبان ناسازگار است.');for(const r of b.records)valid(r.kind,r.data,r.parent_id,b.records,r.id);return b;}
+ importBackup(data){
+  const b=this.validateBackup(data);if(!this.workspace())throw new StoreError('ابتدا فضای کاری بسازید.');
+  return this.transaction(()=>{const existing=this.records(),byId=new Map(existing.map(r=>[r.id,r]));
+   for(const r of b.records)if(byId.has(r.id)&&byId.get(r.id).kind!==r.kind)throw new StoreError('شناسه فایل با اطلاعات فعلی ناسازگار است.');
+   const fresh=b.records.filter(r=>!byId.has(r.id));const combined=[...existing,...fresh];
+   if(combined.length>100000)throw new StoreError('تعداد رکوردها بیش از حد مجاز است.');
+   const skus=new Set(),quotes=new Set();for(const r of combined){valid(r.kind,r.data,r.parent_id,combined,r.id);if(r.kind==='products'&&r.data.sku){const key=r.data.sku.toLowerCase();if(skus.has(key))throw new StoreError('کد محصول تکراری در فایل وجود دارد: '+key);skus.add(key);}if(r.kind==='proformas'&&r.data.quote_number){if(quotes.has(r.data.quote_number))throw new StoreError('شماره پیش‌فاکتور تکراری است.');quotes.add(r.data.quote_number);}}
+   const insert=this.db.prepare('INSERT INTO records VALUES (?,?,?,?,?,?,?,?)');for(const r of fresh){insert.run(r.id,ORG,r.kind,r.parent_id,JSON.stringify(r.data),r.created_at,r.updated_at,r.version);this.log(r.id,'INSERT',r.data.name);}
+   for(const key of [...b.automationKeys,...fresh.map(r=>r.data.automation_key).filter(Boolean)])this.db.prepare('INSERT OR IGNORE INTO automation_keys VALUES (?)').run(key);
+   return {imported:fresh.length,skipped:b.records.length-fresh.length};
+  });
+ }
  restoreBackup(data){const b=this.validateBackup(data);this.transaction(()=>{this.db.exec('DELETE FROM audit; DELETE FROM records; DELETE FROM automation_keys;');this.db.prepare("DELETE FROM meta WHERE key='workspace'").run();if(b.workspace)this.db.prepare("INSERT INTO meta VALUES ('workspace',?)").run(b.workspace);const insert=this.db.prepare('INSERT INTO records VALUES (?,?,?,?,?,?,?,?)');for(const r of b.records)insert.run(r.id,ORG,r.kind,r.parent_id,JSON.stringify(r.data),r.created_at,r.updated_at,r.version);const audit=this.db.prepare('INSERT INTO audit VALUES (?,?,?,?,?,?)');for(const a of b.audit)audit.run(a.id,a.record_id,a.action,a.label,a.created_at,a.actor_id);const key=this.db.prepare('INSERT OR IGNORE INTO automation_keys VALUES (?)');for(const k of [...b.automationKeys,...b.records.map(r=>r.data.automation_key).filter(Boolean)])key.run(k);});}
  close(){if(!this.closed){this.db.close();this.closed=true;}}
 }

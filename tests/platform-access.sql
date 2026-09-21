@@ -1,0 +1,34 @@
+begin;
+select set_config('test.user_id',gen_random_uuid()::text,true);
+select set_config('test.org_id',gen_random_uuid()::text,true);
+select set_config('test.owner_id',(select user_id::text from crm_private.owners limit 1),true);
+insert into auth.users(id,email,email_confirmed_at) values(current_setting('test.user_id')::uuid,'peyvand-transaction-test@example.invalid',now());
+insert into public.crm_orgs(id,name) values(current_setting('test.org_id')::uuid,'transaction test');
+insert into public.crm_members(org_id,user_id,email,role) values(current_setting('test.org_id')::uuid,current_setting('test.user_id')::uuid,'peyvand-transaction-test@example.invalid','admin');
+select set_config('request.jwt.claim.sub',current_setting('test.user_id'),true);
+set local role authenticated;
+do $$ begin
+ if public.crm_role(current_setting('test.org_id')::uuid)<>'admin' then raise exception 'active_user_denied';end if;
+ begin perform public.crm_platform_users();raise exception 'ordinary_user_admin_leak';exception when insufficient_privilege then null;end;
+ begin perform public.crm_platform_update(current_setting('test.user_id')::uuid,true,null);raise exception 'ordinary_user_write_leak';exception when insufficient_privilege then null;end;
+end $$;
+select set_config('request.jwt.claim.sub',current_setting('test.owner_id'),true);
+select public.crm_platform_update(current_setting('test.user_id')::uuid,true,null);
+select set_config('request.jwt.claim.sub',current_setting('test.user_id'),true);
+do $$ begin
+ if public.crm_role(current_setting('test.org_id')::uuid) is not null then raise exception 'disabled_role_leak';end if;
+ if exists(select 1 from public.crm_orgs where id=current_setting('test.org_id')::uuid) then raise exception 'disabled_rls_leak';end if;
+ if (public.crm_access_status()->>'allowed')::boolean then raise exception 'disabled_allowed';end if;
+ begin perform public.crm_create_workspace('blocked');raise exception 'disabled_workspace_leak';exception when insufficient_privilege then null;end;
+end $$;
+select set_config('request.jwt.claim.sub',current_setting('test.owner_id'),true);
+select public.crm_platform_update(current_setting('test.user_id')::uuid,false,current_date-1);
+select set_config('request.jwt.claim.sub',current_setting('test.user_id'),true);
+do $$ begin if public.crm_role(current_setting('test.org_id')::uuid) is not null then raise exception 'expired_role_leak';end if;end $$;
+select set_config('request.jwt.claim.sub',current_setting('test.owner_id'),true);
+select public.crm_platform_update(current_setting('test.user_id')::uuid,false,current_date);
+select set_config('request.jwt.claim.sub',current_setting('test.user_id'),true);
+do $$ begin if public.crm_role(current_setting('test.org_id')::uuid)<>'admin' then raise exception 'expiry_today_denied';end if;end $$;
+reset role;
+select 'PASS: owner control, ordinary-user denial, suspension RLS, workspace denial, expiry, activation. Transaction rolled back.' as result;
+rollback;

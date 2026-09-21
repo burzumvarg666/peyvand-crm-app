@@ -39,9 +39,11 @@ async function all(table: string, token: string) { const result: unknown[] = [];
 } throw new ApiError('حجم اطلاعات برای این نما زیاد است. از پشتیبانی کمک بگیرید.', 413); }
 export async function GET() { try {
     const { token, user } = await session();
+    const access=await rest('rpc/crm_access_status',token,{method:'POST',body:'{}'});
+    if(!access.allowed)throw new ApiError('دسترسی شما تعلیق شده یا اعتبار آن پایان یافته است. با مدیر پیوند تماس بگیرید.',403);
     await rest('rpc/crm_accept_invites', token, { method: 'POST', body: '{}' });
     const m = await membership(token, user.id);
-    if (!m) return NextResponse.json({ org: null, user: { id: user.id, email: user.email }, role: 'viewer', records: [], members: [], invites: [], audit: [] });
+    if (!m) return NextResponse.json({ platformAdmin:access.platformAdmin, org: null, user: { id: user.id, email: user.email }, role: 'viewer', records: [], members: [], invites: [], audit: [] });
     const [org, records, members, invites, audit] = await Promise.all([
         rest(`crm_orgs?id=eq.${m.org_id}&select=id,name`, token),
         all(`crm_records?org_id=eq.${m.org_id}&select=*&order=created_at.desc,id`, token),
@@ -49,13 +51,15 @@ export async function GET() { try {
         m.role === 'admin' ? all(`crm_invites?org_id=eq.${m.org_id}&select=id,email,role&order=id`, token) : [],
         rest(`crm_audit?org_id=eq.${m.org_id}&select=id,record_id,action,label,created_at,actor_id&order=created_at.desc&limit=100`, token)
     ]);
-    return NextResponse.json({ org: org[0], role: m.role, user: { id: user.id, email: user.email }, records, members, invites, audit });
+    return NextResponse.json({ platformAdmin:access.platformAdmin, org: org[0], role: m.role, user: { id: user.id, email: user.email }, records, members, invites, audit });
 } catch (e) { return fail(e); } }
 export async function POST(req: NextRequest) {
     try {
         // Imports can contain many records; the envelope is still bounded to prevent oversized requests.
         const input = await body(req, 20 * 1024 * 1024);
         const { token, user } = await session();
+        const access=await rest('rpc/crm_access_status',token,{method:'POST',body:'{}'});
+        if(!access.allowed)throw new ApiError('دسترسی شما تعلیق شده یا اعتبار آن پایان یافته است.',403);
         if (input.action === 'workspace') {
             const p = z.object({ name: z.string().trim().min(1).max(100) }).safeParse(input);
             if (!p.success) throw new ApiError('نام فضای کاری معتبر نیست.');

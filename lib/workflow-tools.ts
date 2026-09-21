@@ -1,0 +1,12 @@
+import {type Data,type Row,localDay,addDays} from './crm';
+export const normalized=(s:string)=>s.toLowerCase().replace(/ي/g,'ی').replace(/ك/g,'ک').replace(/[۰-۹]/g,c=>String(c.charCodeAt(0)-1776)).replace(/[٠-٩]/g,c=>String(c.charCodeAt(0)-1632)).replace(/\s+/g,' ').trim();
+export const phoneKey=(s:string)=>{let p=normalized(s).replace(/\D/g,'');if(p.startsWith('0098'))p='0'+p.slice(4);else if(p.startsWith('98')&&p.length===12)p='0'+p.slice(2);return p.length>=7?p:'';};
+export function duplicateReasons(a:Pick<Data,'name'|'phone'|'email'>,b:Pick<Data,'name'|'phone'|'email'>){const reasons:string[]=[];if(normalized(a.name)&&normalized(a.name)===normalized(b.name))reasons.push('نام');if(phoneKey(a.phone)&&phoneKey(a.phone)===phoneKey(b.phone))reasons.push('تلفن');if(normalized(a.email)&&normalized(a.email)===normalized(b.email))reasons.push('ایمیل');return reasons;}
+export function duplicatePairs(rows:Row[]){const eligible=rows.filter(r=>['companies','contacts'].includes(r.kind));const index=new Map<string,Row[]>(),pairs=new Map<string,{a:Row;b:Row;reasons:string[]}>();for(const row of eligible){const keys=[normalized(row.data.name),phoneKey(row.data.phone),normalized(row.data.email)];keys.forEach((key,i)=>{if(!key)return;const slot=`${row.kind}:${i}:${key}`;for(const other of index.get(slot)||[]){const id=[row.id,other.id].sort().join(':');pairs.set(id,{a:other,b:row,reasons:duplicateReasons(row.data,other.data)});}index.set(slot,[...(index.get(slot)||[]),row]);});}return [...pairs.values()];}
+export function dailyWork(rows:Row[],today=localDay()){
+ const pending=rows.filter(r=>['tasks','activities'].includes(r.kind)&&r.data.status==='open');
+ const byId=new Map(rows.map(r=>[r.id,r]));
+ const companyFor=(r:Row)=>{let current:Row|undefined=r;const seen=new Set<string>();while(current&&!seen.has(current.id)){if(current.kind==='companies')return current.id;seen.add(current.id);current=current.parent_id?byId.get(current.parent_id):undefined;}return null;};
+ const last=new Map<string,string>();for(const r of rows.filter(r=>r.kind==='activities'&&r.data.status==='done')){const id=companyFor(r),day=r.data.due||r.updated_at.slice(0,10);if(id&&day<=today&&day>(last.get(id)||''))last.set(id,day);}
+ return {today:pending.filter(r=>r.data.due===today),overdue:pending.filter(r=>r.data.due&&r.data.due<today).sort((a,b)=>a.data.due.localeCompare(b.data.due)),undated:pending.filter(r=>!r.data.due),neglected:rows.filter(r=>r.kind==='companies'&&r.data.status==='active'&&(last.get(r.id)||r.created_at.slice(0,10))<addDays(today,-30))};
+}

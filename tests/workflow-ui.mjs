@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {CRMStore} from '../desktop/store.mjs';
+import {BackupManager} from '../desktop/backups.mjs';
+import {startServer} from '../desktop/server.mjs';
+import {blank,localDay} from '../lib/crm.ts';
+const require=createRequire(import.meta.url),{chromium}=require(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES+'/playwright');
+const sparticuz=require('/workspace/scratch/ff4facf04219/browser-check/node_modules/@sparticuz/chromium');
+const store=new CRMStore(':memory:');store.createWorkspace('آزمون امکانات');
+const first=store.save({kind:'companies',parent_id:null,data:{...blank(),name:'شرکت نمونه',status:'lead',phone:'09121234567',city:'تهران',industry:'بشکه‌سازی'}});
+const second=store.save({kind:'companies',parent_id:null,data:{...blank(),name:'شرکت دوم',status:'lead',phone:'+989121234567',city:'اصفهان',industry:'اتوبوس‌سازی'}});
+const contact=store.save({kind:'contacts',parent_id:second.id,data:{...blank(),name:'مخاطب وابسته'}});
+store.save({kind:'activities',parent_id:first.id,data:{...blank(),name:'تماس امروز',status:'open',due:localDay()}});
+const dir=mkdtempSync(join(tmpdir(),'peyvand-ui-')),backups=new BackupManager(store,dir);
+const server=await startServer({store,backups,ui:new URL('../desktop/ui',import.meta.url).pathname,token:'workflow-test'});
+const browser=await chromium.launch({headless:true,executablePath:'/tmp/chromium',args:sparticuz.args.filter(x=>x!=='--disable-web-security')});
+try{
+ const page=await browser.newPage({viewport:{width:1366,height:960}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.context().addCookies([{name:'peyvand_desktop',value:'workflow-test',url:server.origin}]);await page.goto(server.origin);
+ await page.getByRole('button',{name:'سرنخ‌ها',exact:true}).click();
+ await page.getByRole('combobox',{name:'فیلتر شهر'}).click();await page.getByRole('option',{name:'تهران',exact:true}).click();assert.equal(await page.locator('tbody tr').count(),1);
+ await page.getByRole('textbox',{name:'نام فیلتر دلخواه'}).fill('تهران من');await page.getByRole('button',{name:'ذخیره فیلتر',exact:true}).click();await page.getByRole('button',{name:'پاک‌کردن فیلترها'}).click();assert.equal(await page.locator('tbody tr').count(),2);
+ await page.getByRole('button',{name:'تهران من',exact:true}).click();assert.equal(await page.locator('tbody tr').count(),1);
+ await page.reload();await page.getByRole('button',{name:'سرنخ‌ها',exact:true}).click();await page.getByRole('button',{name:'تهران من',exact:true}).click();assert.equal(await page.locator('tbody tr').count(),1);
+ await page.getByRole('button',{name:'پاک‌کردن فیلترها'}).click();
+ await page.screenshot({path:'/workspace/scratch/ff4facf04219/filters-060.png',fullPage:true});
+ await page.getByRole('button',{name:'سرنخ جدید',exact:true}).click();await page.getByRole('textbox',{name:'نام / عنوان',exact:true}).fill('شرکت نمونه');await page.getByText('اطلاعات مشابه پیدا شد',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'ذخیره اطلاعات',exact:true}).click();assert.equal(store.records().filter(r=>r.kind==='companies').length,2);await page.getByRole('button',{name:'انصراف',exact:true}).click();
+ await page.getByRole('button',{name:'موارد مشابه',exact:true}).click();await page.getByRole('button',{name:'انتخاب به‌عنوان اصلی',exact:true}).first().click();await page.getByRole('button',{name:'تأیید ادغام',exact:true}).click();await page.getByText('مورد مشابهی پیدا نشد.',{exact:true}).waitFor();
+ assert.equal(store.records().filter(r=>r.kind==='companies').length,1);assert.equal(store.records().find(r=>r.id===contact.id).parent_id,store.records().find(r=>r.kind==='companies').id);assert(backups.status().count>=1);assert(store.records().some(r=>r.kind==='notes'&&r.data.name.startsWith('اطلاعات کامل پیش از ادغام')));
+ await page.getByRole('button',{name:'پیگیری روزانه',exact:true}).click();await page.getByRole('button',{name:/تماس امروز/}).waitFor();await page.screenshot({path:'/workspace/scratch/ff4facf04219/followups-060.png',fullPage:true});assert.deepEqual(errors,[]);
+ console.log('PASS: city filters, favorite save/reload, duplicate warning blocks accidental save, explicit merge persists and transfers contact, pre-merge backup, daily followups, no browser exceptions.');
+}finally{await browser.close();await server.close();store.close();rmSync(dir,{recursive:true});}
