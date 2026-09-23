@@ -1,0 +1,25 @@
+begin;
+select set_config('test.user',gen_random_uuid()::text,true),set_config('test.org',gen_random_uuid()::text,true),set_config('test.customer',gen_random_uuid()::text,true),set_config('test.product',gen_random_uuid()::text,true);
+insert into auth.users(id,email,email_confirmed_at) values(current_setting('test.user')::uuid,'returns-test@example.invalid',now());
+insert into public.crm_orgs(id,name) values(current_setting('test.org')::uuid,'returns test');
+insert into public.crm_members(org_id,user_id,email,role) values(current_setting('test.org')::uuid,current_setting('test.user')::uuid,'returns-test@example.invalid','admin');
+insert into public.crm_records(id,org_id,kind,data) values(current_setting('test.customer')::uuid,current_setting('test.org')::uuid,'companies','{"name":"Test customer","status":"active"}'),(current_setting('test.product')::uuid,current_setting('test.org')::uuid,'products','{"name":"Test material","status":"active","stock":0,"unit":"kg"}');
+select set_config('request.jwt.claim.sub',current_setting('test.user'),true);
+set local role authenticated;
+do $$ declare r uuid;v integer; begin
+ r=public.crm_return_register(current_setting('test.customer')::uuid,current_setting('test.product')::uuid,2.5,current_date,'damaged package','test','primer','SOR-1405-001');
+ if not exists(select 1 from public.crm_returns where id=r and material_type='primer' and sor_number='SOR-1405-001' and quantity=2.5 and return_date=current_date) then raise exception 'details_not_persisted';end if;
+ if (select (data->>'stock')::numeric from public.crm_records where id=current_setting('test.product')::uuid)<>0 then raise exception 'premature_stock';end if;
+ perform public.crm_return_resolve(r,1,'received',true);
+ begin perform public.crm_return_resolve(r,1,'received',true);raise exception 'duplicate_not_rejected' using errcode='22000';exception when raise_exception then null;end;
+ if (select (data->>'stock')::numeric from public.crm_records where id=current_setting('test.product')::uuid)<>2.5 then raise exception 'double_stock';end if;
+ r=public.crm_return_create(current_setting('test.customer')::uuid,current_setting('test.product')::uuid,1,current_date,'damaged material','test');perform public.crm_return_resolve(r,1,'received',false);
+ r=public.crm_return_create(current_setting('test.customer')::uuid,current_setting('test.product')::uuid,1,current_date,'invalid return','test');perform public.crm_return_resolve(r,1,'rejected',false);
+ if (select (data->>'stock')::numeric from public.crm_records where id=current_setting('test.product')::uuid)<>2.5 then raise exception 'quarantine_or_reject_changed_stock';end if;
+ perform set_config('request.jwt.claim.sub',gen_random_uuid()::text,true);
+ if exists(select 1 from public.crm_returns) then raise exception 'cross_tenant_read';end if;
+ begin perform public.crm_return_create(current_setting('test.customer')::uuid,current_setting('test.product')::uuid,1,current_date,'unauthorized','');raise exception 'cross_tenant_write' using errcode='22000';exception when insufficient_privilege then null;end;
+end $$;
+reset role;
+select 'PASS: register, atomic receipt, duplicate rejection, quarantine, rejection and tenant isolation' as result;
+rollback;
