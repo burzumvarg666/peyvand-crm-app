@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { session, rest, body, fail, ApiError } from '@/lib/server';
+import {automationCandidates} from '@/lib/automation';
+import {localDay,type Row} from '@/lib/crm';
 import { dataSchema, kinds, validateSales } from '@/lib/crm';
 export const dynamic = 'force-dynamic';
 const uuid = z.string().uuid();
@@ -20,6 +22,7 @@ const importEnvelope = z.object({
     exportedAt: z.string().datetime().optional(),
     workspace: z.string().trim().min(1).max(100).nullable().optional(),
     records: z.array(importRecord).max(100000),
+    returns: z.array(z.record(z.unknown())).max(100000).optional(),
     audit: z.array(z.unknown()).max(200000).optional(),
     automationKeys: z.array(z.string().max(200)).max(200000).optional()
 }).strict();
@@ -51,6 +54,12 @@ export async function GET() { try {
         m.role === 'admin' ? all(`crm_invites?org_id=eq.${m.org_id}&select=id,email,role&order=id`, token) : [],
         rest(`crm_audit?org_id=eq.${m.org_id}&select=id,record_id,action,label,created_at,actor_id&order=created_at.desc&limit=100`, token)
     ]);
+    if(m.role!=='viewer'){
+        for(const c of automationCandidates(records as Row[],localDay())){
+            const added=await rest('rpc/crm_apply_automation',token,{method:'POST',body:JSON.stringify({record_kind:c.kind,record_data:c.data,record_parent:c.parent_id})});
+            if(added)records.push(added);
+        }
+    }
     return NextResponse.json({ platformAdmin:access.platformAdmin, org: org[0], role: m.role, user: { id: user.id, email: user.email }, records, members, invites, audit });
 } catch (e) { return fail(e); } }
 export async function POST(req: NextRequest) {
@@ -73,7 +82,7 @@ export async function POST(req: NextRequest) {
         if (input.action === 'import') {
             const parsed = importEnvelope.safeParse(input.backup);
             if (!parsed.success) throw new ApiError('فایل پشتیبان معتبر نیست یا نسخهٔ آن پشتیبانی نمی‌شود.');
-            const result = await rest('rpc/crm_import_backup', token, {
+            const result = await rest('rpc/crm_import_complete', token, {
                 method: 'POST',
                 body: JSON.stringify({ payload: parsed.data })
             });
@@ -98,10 +107,20 @@ export async function POST(req: NextRequest) {
                 if (v.kind === 'activities' && !['companies','contacts','deals'].includes(parentKind)) throw new ApiError('فعالیت فقط می‌تواند به حساب، کانتکت یا فرصت فروش مرتبط شود.');
                 if (!['notes','activities'].includes(v.kind) && parentKind !== 'companies') throw new ApiError('مشتری مرتبط معتبر نیست.');
             }
+            if (v.kind === 'proformas') {
+                if(v.data.related_deal_id){
+                    const linked=await rest(`crm_records?id=eq.${v.data.related_deal_id}&org_id=eq.${m.org_id}&kind=eq.deals&parent_id=eq.${v.parent_id}&select=id`,token);
+                    if(!linked.length)throw new ApiError('فرصت فروش باید متعلق به همین مشتری باشد.');
+                }
+                const ids = [...new Set(v.data.items.map(i=>i.product_id))];
+                const products = await rest(`crm_records?org_id=eq.${m.org_id}&kind=eq.products&id=in.(${ids.join(',')})&select=id`, token);
+                if(products.length!==ids.length)throw new ApiError('یکی از محصولات پیش‌فاکتور موجود نیست یا متعلق به این شرکت نیست.');
+            }
             if (v.data.assignee) {
                 const assignees = await rest(`crm_members?user_id=eq.${v.data.assignee}&org_id=eq.${m.org_id}&select=user_id`, token);
                 if (!assignees.length) throw new ApiError('مسئول انتخاب‌شده عضو تیم نیست.');
             }
+            const previous=v.id?(await rest(`crm_records?id=eq.${v.id}&org_id=eq.${m.org_id}&select=*`,token))[0]:undefined;
             const payload = { org_id: m.org_id, kind: v.kind, data: v.data, parent_id: v.parent_id };
             const result = await rest(v.id ? `crm_records?id=eq.${v.id}&org_id=eq.${m.org_id}&kind=eq.${v.kind}&version=eq.${v.version || 0}` : 'crm_records', token, {
                 method: v.id ? 'PATCH' : 'POST',
@@ -109,7 +128,13 @@ export async function POST(req: NextRequest) {
                 body: JSON.stringify(payload)
             });
             if (!result?.length) throw new ApiError('رکورد تغییر کرده یا حذف شده است. صفحه را تازه و دوباره ویرایش کنید.', 409);
-            return NextResponse.json({ ok: true });
+            let automationWarning=false;
+            try{
+                const rules=await all(`crm_records?org_id=eq.${m.org_id}&kind=eq.automations&select=*&order=id`,token);
+                for(const c of automationCandidates(rules as Row[],localDay(),{previous,next:result[0]}))
+                    await rest('rpc/crm_apply_automation',token,{method:'POST',body:JSON.stringify({record_kind:c.kind,record_data:c.data,record_parent:c.parent_id})});
+            }catch{automationWarning=true;}
+            return NextResponse.json({ ok: true,automationWarning });
         }
 
         if (input.action === 'inventory') {
@@ -138,6 +163,8 @@ export async function POST(req: NextRequest) {
             if (!p.success) throw new ApiError('شناسه معتبر نیست.');
             const current = await rest(`crm_records?id=eq.${p.data.id}&org_id=eq.${m.org_id}&select=id,kind,data,version&limit=1`, token);
             if (!current.length || current[0].version !== p.data.version) throw new ApiError('رکورد تغییر کرده است. اطلاعات را تازه کنید.', 409);
+            const children=await rest(`crm_records?parent_id=eq.${p.data.id}&select=id&limit=1`,token);
+            if(children.length)throw new ApiError('این پرونده سابقه مرتبط دارد؛ به‌جای حذف، آن را غیرفعال کنید.');
             if (current[0].kind === 'stock_movements') throw new ApiError('سند انبار به‌تنهایی حذف نمی‌شود؛ یک اصلاح موجودی ثبت کنید.');
             if (current[0].kind === 'products') {
                 if (Number(current[0].data?.stock || 0) !== 0) throw new ApiError('برای حذف محصول، ابتدا موجودی را از بخش انبارداری به صفر برسانید.');

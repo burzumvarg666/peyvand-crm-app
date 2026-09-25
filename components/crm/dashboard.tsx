@@ -12,10 +12,11 @@ export function Dashboard({rows,audit,onNavigate,onOpen}:{rows:Row[];audit:Audit
  const [period,setPeriod]=useState('90');
  const now=localDay(),cutoff=period==='all'?'0000-01-01':addDays(now,-Number(period)+1);
  const deals=rows.filter(r=>r.kind==='deals'&&r.created_at.slice(0,10)>=cutoff);
- const won=deals.filter(r=>r.data.stage==='won'),closed=deals.filter(r=>['won','lost'].includes(r.data.stage));
+ const closed=rows.filter(r=>r.kind==='deals'&&['won','lost'].includes(r.data.stage)&&(period==='all'||Boolean(r.data.closed_on)&&r.data.closed_on>=cutoff));
+ const won=closed.filter(r=>r.data.stage==='won');
  const revenue=won.reduce((sum,r)=>sum+r.data.amount,0),open=deals.filter(r=>!['won','lost'].includes(r.data.stage));
  const pipeline=open.reduce((sum,r)=>sum+r.data.amount,0),winRate=closed.length?Math.round(won.length/closed.length*100):0;
- const tasks=rows.filter(r=>r.kind==='tasks'&&r.data.status==='open').sort((a,b)=>(a.data.due||'9999').localeCompare(b.data.due||'9999'));
+ const tasks=rows.filter(r=>['tasks','activities'].includes(r.kind)&&r.data.status==='open').sort((a,b)=>(a.data.due||'9999').localeCompare(b.data.due||'9999'));
  const late=tasks.filter(r=>r.data.due&&r.data.due<now),todayTasks=tasks.filter(r=>r.data.due===now);
  const products=rows.filter(r=>r.kind==='products'&&r.data.status==='active'),lowStock=products.filter(r=>r.data.stock<=r.data.min_stock);
  const quotes=rows.filter(r=>r.kind==='proformas'&&r.created_at.slice(0,10)>=cutoff);
@@ -29,7 +30,7 @@ export function Dashboard({rows,audit,onNavigate,onOpen}:{rows:Row[];audit:Audit
  },[rows,cutoff,now,period]);
  const pendingQuotes=quotes.filter(r=>['draft','sent'].includes(r.data.quote_status)).reduce((s,r)=>s+quoteAmounts(r.data).total,0);
  return <div className="dashboard-v5">
-  <section className="overview-banner"><div><span className="overview-kicker">مرکز مدیریت فروش</span><h2>تصویر روشنِ کسب‌وکار شما</h2><p>فروش، پیگیری‌ها و موجودی در یک نگاه.</p><div className="overview-meta"><span><Clock3 size={16}/>{num(todayTasks.length)} پیگیری امروز</span><span><Boxes size={16}/>{num(products.length)} محصول فعال</span></div></div><div className="overview-control"><span>بازهٔ ثبت فرصت‌ها و پیش‌فاکتورها</span><Pick label="بازه داشبورد" value={period} onChange={setPeriod} options={[{value:'30',label:'۳۰ روز گذشته'},{value:'90',label:'۹۰ روز گذشته'},{value:'all',label:'کل دوره'}]}/><small>انبار و پیگیری‌ها: وضعیت فعلی</small></div></section>
+  <section className="overview-banner"><div><span className="overview-kicker">مرکز مدیریت فروش</span><h2>تصویر روشنِ کسب‌وکار شما</h2><p>فروش، پیگیری‌ها و موجودی در یک نگاه.</p><div className="overview-meta"><span><Clock3 size={16}/>{num(todayTasks.length)} پیگیری امروز</span><span><Boxes size={16}/>{num(products.length)} محصول فعال</span></div></div><div className="overview-control"><span>بازه گزارش</span><Pick label="بازه داشبورد" value={period} onChange={setPeriod} options={[{value:'30',label:'۳۰ روز گذشته'},{value:'90',label:'۹۰ روز گذشته'},{value:'all',label:'کل دوره'}]}/><small>فروش: تاریخ نتیجه؛ فرصت و پیش‌فاکتور: تاریخ ثبت</small></div></section>
   <section className="overview-metrics">
    <button className="overview-stat stat-dark" onClick={()=>onNavigate('deals','won')}><div><span>فروش موفق</span><TrendingUp size={22}/></div><strong>{short(revenue)}</strong><span className="stat-unit">تومان · {num(won.length)} فرصت موفق</span><span className="stat-link">مشاهده فروش‌ها <ArrowUpLeft size={16}/></span></button>
    <button className="overview-stat" onClick={()=>onNavigate('deals')}><div><span>ارزش فرصت‌های باز</span><Target size={22}/></div><strong>{short(pipeline)}</strong><span className="stat-unit">تومان · {num(open.length)} فرصت در جریان</span><span className="stat-link">ورود به پایپ‌لاین <ArrowUpLeft size={16}/></span></button>
