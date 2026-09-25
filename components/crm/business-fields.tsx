@@ -1,4 +1,5 @@
 'use client';
+import {NumberInput} from '@/components/ui/number-input';
 import {Input} from '@/components/ui/input';
 import {Textarea} from '@/components/ui/textarea';
 import {PersianDateInput,Pick} from './shared';
@@ -10,11 +11,11 @@ export function BusinessFields({kind,data,set}:{kind:Kind;data:Data;set:(key:key
   <label>وب‌سایت<Input dir="ltr" maxLength={300} value={data.website} onChange={e=>set('website',e.target.value)}/></label>
   <label>منبع سرنخ<Input maxLength={120} placeholder="نمایشگاه، تماس ورودی…" value={data.lead_source} onChange={e=>set('lead_source',e.target.value)}/></label>
   <label>رتبهٔ سرنخ<Pick label="رتبهٔ سرنخ" value={data.lead_rank} onChange={v=>set('lead_rank',v)} options={[{value:'cold',label:'سرد'},{value:'warm',label:'گرم'},{value:'hot',label:'داغ'}]}/></label>
-  {kind==='companies'&&<label>تعداد پرسنل<Input type="number" dir="ltr" min={0} value={data.employee_count} onChange={e=>set('employee_count',Number(e.target.value))}/></label>}
+  {kind==='companies'&&<label>تعداد پرسنل<NumberInput type="number" dir="ltr" min={0} value={data.employee_count} onChange={e=>set('employee_count',Number(e.target.value))}/></label>}
   <label className="full">آدرس<Textarea rows={2} maxLength={1000} value={data.address} onChange={e=>set('address',e.target.value)}/></label>
  </>;
  if(kind==='deals')return <>
- <label>احتمال فروش (درصد)<Input type="number" dir="ltr" min={0} max={100} step="1" value={data.probability} onChange={e=>set('probability',Number(e.target.value))}/></label>
+ <label>احتمال فروش (درصد)<NumberInput type="number" dir="ltr" min={0} max={100} step="1" value={data.probability} onChange={e=>set('probability',Number(e.target.value))}/></label>
   <label>تاریخ پیش‌بینی فروش<PersianDateInput value={data.estimated_sales_date} onChange={v=>set('estimated_sales_date',v)} ariaLabel="تاریخ پیش‌بینی فروش به شمسی"/></label>
   <label>کمپین موثر<Input maxLength={160} value={data.campaign} onChange={e=>set('campaign',e.target.value)}/></label>
   <label>منبع سرنخ<Input maxLength={120} value={data.lead_source} onChange={e=>set('lead_source',e.target.value)}/></label>
