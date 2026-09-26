@@ -23,6 +23,7 @@ const coreDataSchema = z.object({ name: z.string().trim().min(1, 'عنوان ر�
 export const salesSchema = z.object({
     closed_on: date.default(''),
     related_deal_id: z.union([z.literal(''),z.string().uuid()]).default(''),
+    product_type: z.enum(['paint','primer','clearcoat','other']).default('other'), ral_code: z.string().trim().max(30).default(''),
     sku: z.string().trim().max(80).default(''), category: z.string().trim().max(100).default(''),
     min_stock: z.number().finite().min(0).max(1e12).default(0),
     movement_type: z.enum(['in', 'out', 'adjustment', 'opening']).default('in'),

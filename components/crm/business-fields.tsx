@@ -27,7 +27,7 @@ export function BusinessFields({kind,data,set}:{kind:Kind;data:Data;set:(key:key
   <label>نمایندهٔ خریدار<Input maxLength={160} value={data.buyer_representative} onChange={e=>set('buyer_representative',e.target.value)}/></label>
   <label>کد اقتصادی<Input dir="ltr" maxLength={80} value={data.economic_code} onChange={e=>set('economic_code',e.target.value)}/></label>
   <label>فکس خریدار<Input dir="ltr" maxLength={50} value={data.buyer_fax} onChange={e=>set('buyer_fax',e.target.value)}/></label>
-  <label className="full">آدرس صورت‌حساب<Textarea rows={2} maxLength={1000} value={data.billing_address} onChange={e=>set('billing_address',e.target.value)}/></label>
+  <label className="full">آدرس مشتری در پیش‌فاکتور<Textarea rows={2} maxLength={1000} placeholder="اگر خالی باشد، آدرس پرونده مشتری چاپ می‌شود" value={data.billing_address} onChange={e=>set('billing_address',e.target.value)}/></label>
   <label className="full">شرایط و ضوابط<Textarea rows={2} maxLength={3000} value={data.terms} onChange={e=>set('terms',e.target.value)}/></label>
  </>;
  return null;

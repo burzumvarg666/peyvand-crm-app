@@ -38,3 +38,18 @@ test('mixed legacy tasks and activities keep the dedicated activity Excel schema
   assert.ok(headers.includes('ساعت شروع'));
   assert.ok(!headers.includes('شناسه'));
 });
+
+test('quote printing uses customer address and preserves escaped buyer details', async () => {
+ const {proformaHtml}=await import('../lib/proforma');
+ const state=demoState(); const customer=state.records.find(r=>r.kind==='companies')!;
+ customer.data.address='تهران، خیابان نمونه، پلاک ۱۲'; customer.data.city='شهر نباید چاپ شود';
+ const quote={...customer,kind:'proformas' as const,parent_id:customer.id,data:dataSchema.parse({name:'آزمون چاپ',buyer_representative:'<script>bad</script>',economic_code:'1234',terms:'تحویل پس از تأیید',items:[]})};
+ const html=proformaHtml(quote,[customer],'پیوند');
+ assert.ok(html.includes(customer.data.address)); assert.ok(!html.includes(customer.data.city));
+ assert.ok(html.includes('&lt;script&gt;')); assert.ok(!html.includes('<script>bad'));
+ assert.ok(html.includes('<th>محصول</th>')); assert.ok(html.includes('<th>مقدار</th>'));
+ quote.data.billing_address='آدرس مخصوص این سند';
+ assert.ok(proformaHtml(quote,[customer],'پیوند').includes('آدرس مخصوص این سند'));
+ assert.equal(dataSchema.parse({name:'محصول قدیمی'}).product_type,'other');
+ assert.equal(dataSchema.parse({name:'رنگ',product_type:'paint',ral_code:'RAL 3020'}).ral_code,'RAL 3020');
+});

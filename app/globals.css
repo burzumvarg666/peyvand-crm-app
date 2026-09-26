@@ -209,3 +209,5 @@
 
 /* Keep native fields, chart labels and Sonner notifications in the CRM typeface. */
 html,button,input,textarea,select,option,optgroup,code,kbd,pre,samp,body [data-sonner-toaster]{font-family:var(--font-ui)}
+
+.product-picker{border:1px solid #cadbd4;border-radius:12px;padding:16px;display:grid;gap:12px;grid-row:2}.product-picker-results{max-height:300px;overflow:auto;display:grid;gap:8px}.product-picker-item{height:auto!important;white-space:normal!important;justify-content:space-between!important;text-align:right;padding:12px!important;gap:16px}.product-picker-item small{display:block;font-size:12px;font-weight:400}.quote-line output{font-variant-numeric:tabular-nums;text-align:center}.quote-line-head span,.quote-line>strong{text-align:center}
