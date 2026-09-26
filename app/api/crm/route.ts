@@ -129,6 +129,8 @@ export async function POST(req: NextRequest) {
                 if (!assignees.length) throw new ApiError('مسئول انتخاب‌شده عضو تیم نیست.');
             }
 
+            if(previous?.data?.archived)throw new ApiError('این محصول از فهرست حذف شده و فقط برای نگهداری سوابق باقی مانده است.');
+            v.data.archived=false;
             const payload = { org_id: m.org_id, kind: v.kind, data: v.data, parent_id: v.parent_id };
             const result = await rest(v.id ? `crm_records?id=eq.${v.id}&org_id=eq.${m.org_id}&kind=eq.${v.kind}&version=eq.${v.version || 0}` : 'crm_records', token, {
                 method: v.id ? 'PATCH' : 'POST',
@@ -171,13 +173,17 @@ export async function POST(req: NextRequest) {
             if (!p.success) throw new ApiError('شناسه معتبر نیست.');
             const current = await rest(`crm_records?id=eq.${p.data.id}&org_id=eq.${m.org_id}&select=id,kind,data,version&limit=1`, token);
             if (!current.length || current[0].version !== p.data.version) throw new ApiError('رکورد تغییر کرده است. اطلاعات را تازه کنید.', 409);
-            const children=await rest(`crm_records?parent_id=eq.${p.data.id}&select=id&limit=1`,token);
-            if(children.length)throw new ApiError('این پرونده سابقه مرتبط دارد؛ به‌جای حذف، آن را غیرفعال کنید.');
             if (current[0].kind === 'stock_movements') throw new ApiError('سند انبار به‌تنهایی حذف نمی‌شود؛ یک اصلاح موجودی ثبت کنید.');
             if (current[0].kind === 'products') {
                 if (Number(current[0].data?.stock || 0) !== 0) throw new ApiError('برای حذف محصول، ابتدا موجودی را از بخش انبارداری به صفر برسانید.');
                 if (current[0].data?.status !== 'inactive') throw new ApiError('برای حذف کامل محصول، ابتدا وضعیت آن را غیرفعال کنید.');
+                const archived=await rest(`crm_records?id=eq.${p.data.id}&org_id=eq.${m.org_id}&version=eq.${p.data.version}`,token,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({data:{...current[0].data,archived:true}})});
+                if(!archived?.length)throw new ApiError('رکورد تغییر کرده است. اطلاعات را تازه کنید.',409);
+                return NextResponse.json({ok:true});
+
             }
+            const children=await rest(`crm_records?parent_id=eq.${p.data.id}&select=id&limit=1`,token);
+            if(children.length)throw new ApiError('این پرونده سابقه مرتبط دارد؛ به‌جای حذف، آن را غیرفعال کنید.');
             const result = await rest(`crm_records?id=eq.${p.data.id}&org_id=eq.${m.org_id}&version=eq.${p.data.version}`, token, { method: 'DELETE', headers: { Prefer: 'return=representation' } });
             if (!result?.length) throw new ApiError('رکورد تغییر کرده است. اطلاعات را تازه کنید.', 409);
             return NextResponse.json({ ok: true });

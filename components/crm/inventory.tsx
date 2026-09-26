@@ -14,7 +14,7 @@ export type InventoryInput={product_id:string;type:'in'|'out'|'adjustment';quant
 const movementNames={in:'ورود کالا',out:'خروج کالا',adjustment:'اصلاح شمارش',opening:'موجودی اولیه'};
 export function Inventory({rows,query,filter,busy,canEdit,onMovement,onOpen,onExport}:{rows:Row[];query:string;filter:string;busy:boolean;canEdit:boolean;onMovement:(input:InventoryInput)=>Promise<boolean>;onOpen:(id:string)=>void;onExport:(rows:Row[])=>void}){
  const [movement,setMovement]=useState<{product:Row;type:InventoryInput['type']}|null>(null);
- const products=rows.filter(r=>r.kind==='products'),active=products.filter(r=>r.data.status==='active'),low=active.filter(r=>r.data.stock<=r.data.min_stock);
+ const products=rows.filter(r=>r.kind==='products'&&!r.data.archived),active=products.filter(r=>r.data.status==='active'),low=active.filter(r=>r.data.stock<=r.data.min_stock);
  const shown=products.filter(r=>(filter!=='low'||(r.data.status==='active'&&r.data.stock<=r.data.min_stock))&&[r.data.name,r.data.sku,r.data.category].join(' ').toLocaleLowerCase().includes(query.toLocaleLowerCase()));
  const ledger=rows.filter(r=>r.kind==='stock_movements'&&[r.data.name,r.data.movement_reference,r.data.description].join(' ').toLocaleLowerCase().includes(query.toLocaleLowerCase()));
  return <><section className="inventory-metrics"><article><Boxes/><span>محصول فعال</span><b>{num(active.length)}</b></article><article><TriangleAlert/><span>نیاز به تأمین</span><b>{num(low.length)}</b></article><article><PackageMinus/><span>ناموجود</span><b>{num(active.filter(r=>r.data.stock===0).length)}</b></article><article><History/><span>ارزش موجودی با قیمت فروش</span><b>{money(products.reduce((s,r)=>s+r.data.stock*r.data.price,0))}</b></article></section>

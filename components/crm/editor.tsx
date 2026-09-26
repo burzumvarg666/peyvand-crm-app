@@ -36,7 +36,7 @@ export function Editor({editing,rows,members,busy,onClose,onSave}:{editing:Editi
  const [activityRelationKind,setActivityRelationKind]=useState(()=>kind==='activities'?(rows.find(r=>r.id===initialParent)?.kind||''):'');
  const set=(key:keyof Data,value:unknown)=>{setAllowDuplicate(false);setData(current=>({...current,[key]:value} as Data));};
  const duplicates=['companies','contacts'].includes(kind)?rows.filter(r=>r.kind===kind&&r.id!==editing.row?.id&&duplicateReasons(data,r.data).length):[];
- const products=rows.filter(r=>r.kind==='products'&&r.data.status==='active');
+ const products=rows.filter(r=>r.kind==='products'&&!r.data.archived&&r.data.status==='active');
  const relationLabels:Record<string,string>={companies:'حساب',contacts:'کانتکت',deals:'فرصت فروش'};
  const activityRelations=rows.filter(r=>r.kind===activityRelationKind);
  const updateItem=(index:number,patch:Partial<ProformaItem>)=>setData(d=>({...d,items:d.items.map((item,i)=>i===index?{...item,...patch}:item)}));
