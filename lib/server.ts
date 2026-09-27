@@ -24,6 +24,15 @@ export async function sb(path: string, token?: string, init: RequestInit = {}) {
         throw new ApiError('این مورد قبلاً ثبت شده است.', 409);
     if (r.status === 403 || data?.code === '42501')
         throw new ApiError('اجازه انجام این عملیات را ندارید.', 403);
+    const returnErrors: Record<string,string> = {
+        invalid_batch_details:'شماره بچ مواد و برای مواد تینرخورده شماره بچ تینر الزامی است.',
+        thinned_requires_quarantine:'مواد تینرخورده باید در قرنطینه دریافت شوند.',
+        receive_first:'ابتدا دریافت مواد برگشتی را ثبت کنید.',
+        already_resent:'تمام مقدار این برگشتی قبلاً ارسال شده است.',
+        invalid_resend:'ابتدا آماده ارسال را ثبت کنید؛ مقدار باید از مانده بیشتر نباشد و شماره حواله لازم است.',
+        invalid_followup:'تاریخ اقدام باید از تاریخ برگشت تا امروز باشد و توضیح اقدام تکمیل شود.'
+    };
+    if (data?.code === 'P0001' && returnErrors[data?.message]) throw new ApiError(returnErrors[data.message],409);
     if (data?.code === 'P0001')
         throw new ApiError('عملیات با وضعیت فعلی اطلاعات سازگار نیست. صفحه را تازه کنید.', 409);
     throw new ApiError('عملیات انجام نشد. اطلاعات ورودی و اتصال پایگاه داده را بررسی کنید.', r.status >= 500 ? 502 : 400);

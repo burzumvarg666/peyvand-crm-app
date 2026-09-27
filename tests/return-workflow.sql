@@ -1,0 +1,35 @@
+begin;
+select set_config('test.user',gen_random_uuid()::text,true),set_config('test.org',gen_random_uuid()::text,true),set_config('test.customer',gen_random_uuid()::text,true),set_config('test.product',gen_random_uuid()::text,true);
+insert into auth.users(id,email,email_confirmed_at) values(current_setting('test.user')::uuid,'returns-test@example.invalid',now());
+insert into public.crm_orgs(id,name) values(current_setting('test.org')::uuid,'returns test');
+insert into public.crm_members(org_id,user_id,email,role) values(current_setting('test.org')::uuid,current_setting('test.user')::uuid,'returns-test@example.invalid','admin');
+insert into public.crm_records(id,org_id,kind,data) values(current_setting('test.customer')::uuid,current_setting('test.org')::uuid,'companies','{"name":"Test customer","status":"active"}'),(current_setting('test.product')::uuid,current_setting('test.org')::uuid,'products','{"name":"Test material","status":"active","stock":0,"unit":"kg"}');
+select set_config('request.jwt.claim.sub',current_setting('test.user'),true);
+set local role authenticated;
+do $$ declare r uuid;v integer; begin
+
+ r=public.crm_return_register_v2(current_setting('test.customer')::uuid,current_setting('test.product')::uuid,2.5,current_date,'damage','ref','paint','SOR1','raw','B1','');
+ if not exists(select 1 from public.crm_returns where id=r and batch_number='B1' and material_condition='raw') then raise exception 'batch_not_saved';end if;
+ perform public.crm_return_resolve(r,1,'received',true);
+ perform public.crm_return_followup(r,2,'ready','checked',current_date);
+ perform public.crm_return_followup(r,3,'resend','partial',current_date,1,'OUT1');
+ begin perform public.crm_return_followup(r,3,'resend','duplicate',current_date,1,'OUT1');raise exception 'duplicate_allowed' using errcode='22000';exception when raise_exception then null;end;
+ begin perform public.crm_return_followup(r,4,'resend','excess',current_date,2,'OUT2');raise exception 'excess_allowed' using errcode='22000';exception when raise_exception then null;end;
+ perform public.crm_return_followup(r,4,'resend','remaining',current_date,1.5,'OUT2');
+ if not exists(select 1 from public.crm_returns where id=r and workflow->>'stage'='resent' and jsonb_array_length(workflow->'events')=3) then raise exception 'history_wrong';end if;
+ if (select (data->>'stock')::numeric from public.crm_records where id=current_setting('test.product')::uuid)<>0 then raise exception 'resend_stock_wrong';end if;
+ r=public.crm_return_register_v2(current_setting('test.customer')::uuid,current_setting('test.product')::uuid,1,current_date,'damage','ref','paint','SOR2','thinned','B1','T1');
+ begin perform public.crm_return_resolve(r,1,'received',true);raise exception 'thinned_restock_allowed' using errcode='22000';exception when raise_exception then null;end;
+ perform public.crm_return_resolve(r,1,'received',false);
+ perform public.crm_return_followup(r,2,'rework','filtered',current_date);
+ perform public.crm_return_followup(r,3,'ready','approved',current_date);
+ perform public.crm_return_followup(r,4,'resend','dispatched',current_date,1,'OUT3');
+ if (select (data->>'stock')::numeric from public.crm_records where id=current_setting('test.product')::uuid)<>0 then raise exception 'quarantine_changed_stock';end if;
+ perform set_config('request.jwt.claim.sub',gen_random_uuid()::text,true);
+ begin perform public.crm_return_followup(r,5,'note','unauthorized',current_date);raise exception 'cross_tenant_followup' using errcode='22000';exception when insufficient_privilege then null;end;
+ if exists(select 1 from public.crm_returns) then raise exception 'cross_tenant_read';end if;
+ begin perform public.crm_return_create(current_setting('test.customer')::uuid,current_setting('test.product')::uuid,1,current_date,'unauthorized','');raise exception 'cross_tenant_write' using errcode='22000';exception when insufficient_privilege then null;end;
+end $$;
+reset role;
+select 'PASS: batch persistence, partial/full resend, duplicate/over-quantity rejection, thinned quarantine, inventory consistency, tenant isolation' as result;
+rollback;
