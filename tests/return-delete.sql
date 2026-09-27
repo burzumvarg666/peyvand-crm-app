@@ -1,0 +1,35 @@
+begin;
+select set_config('test.user',gen_random_uuid()::text,true),set_config('test.org',gen_random_uuid()::text,true),set_config('test.customer',gen_random_uuid()::text,true),set_config('test.product',gen_random_uuid()::text,true);
+insert into auth.users(id,email,email_confirmed_at) values(current_setting('test.user')::uuid,'returns-test@example.invalid',now());
+insert into public.crm_orgs(id,name) values(current_setting('test.org')::uuid,'returns test');
+insert into public.crm_members(org_id,user_id,email,role) values(current_setting('test.org')::uuid,current_setting('test.user')::uuid,'returns-test@example.invalid','admin');
+insert into public.crm_records(id,org_id,kind,data) values(current_setting('test.customer')::uuid,current_setting('test.org')::uuid,'companies','{"name":"Test customer","status":"active"}'),(current_setting('test.product')::uuid,current_setting('test.org')::uuid,'products','{"name":"Test material","status":"active","stock":0,"unit":"kg"}');
+select set_config('request.jwt.claim.sub',current_setting('test.user'),true);
+set local role authenticated;
+do $$ declare r uuid;v integer; begin
+
+ r=public.crm_return_register(current_setting('test.customer')::uuid,current_setting('test.product')::uuid,2.5,current_date,'damage','test','paint','SOR1');
+ perform public.crm_return_delete(r,1);
+ if exists(select 1 from public.crm_returns where id=r) then raise exception 'pending_not_deleted';end if;
+ r=public.crm_return_register(current_setting('test.customer')::uuid,current_setting('test.product')::uuid,2.5,current_date,'damage','test','paint','SOR1');
+ perform public.crm_return_resolve(r,1,'rejected',false);
+ perform public.crm_return_delete(r,2);
+ if exists(select 1 from public.crm_returns where id=r) then raise exception 'rejected_not_deleted';end if;
+ r=public.crm_return_register(current_setting('test.customer')::uuid,current_setting('test.product')::uuid,2.5,current_date,'damage','test','paint','SOR1');
+ perform public.crm_return_resolve(r,1,'received',true);
+ perform public.crm_return_followup(r,2,'ready','checked',current_date);
+ perform public.crm_return_followup(r,3,'resend','partial',current_date,1,'OUT1');
+ begin perform public.crm_return_delete(r,1);raise exception 'stale_delete_allowed' using errcode='22000';exception when raise_exception then null;end;
+ perform public.crm_return_delete(r,4);
+ if exists(select 1 from public.crm_returns where id=r) then raise exception 'received_not_deleted';end if;
+ if (select (data->>'stock')::numeric from public.crm_records where id=current_setting('test.product')::uuid)<>1.5 then raise exception 'stock_changed_by_delete';end if;
+ if (select count(*) from public.crm_records where parent_id=current_setting('test.product')::uuid and kind='stock_movements')<>2 then raise exception 'movements_deleted';end if;
+ r=public.crm_return_register(current_setting('test.customer')::uuid,current_setting('test.product')::uuid,1,current_date,'damage','test','paint','SOR2');
+ perform set_config('request.jwt.claim.sub',gen_random_uuid()::text,true);
+ begin perform public.crm_return_delete(r,1);raise exception 'cross_tenant_delete' using errcode='22000';exception when insufficient_privilege then null;end;
+ if exists(select 1 from public.crm_returns) then raise exception 'cross_tenant_read';end if;
+ begin perform public.crm_return_create(current_setting('test.customer')::uuid,current_setting('test.product')::uuid,1,current_date,'unauthorized','');raise exception 'cross_tenant_write' using errcode='22000';exception when insufficient_privilege then null;end;
+end $$;
+reset role;
+select 'PASS: pending/rejected/received deletion, stale version rejected, stock and movements preserved, tenant isolation' as result;
+rollback;
