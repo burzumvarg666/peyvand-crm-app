@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { session, rest, body, fail, ApiError } from '@/lib/server';
+import {sampleSchema} from '@/lib/samples';
 import {automationCandidates} from '@/lib/automation';
 import {localDay,type Row} from '@/lib/crm';
 import { dataSchema, kinds, validateSales } from '@/lib/crm';
@@ -22,6 +23,7 @@ const importEnvelope = z.object({
     exportedAt: z.string().datetime().optional(),
     workspace: z.string().trim().min(1).max(100).nullable().optional(),
     records: z.array(importRecord).max(100000),
+    samples: z.array(z.object({id:z.string().uuid(),version:z.number().int().positive(),data:sampleSchema})).max(100000).optional(),
     returns: z.array(z.record(z.unknown())).max(100000).optional(),
     audit: z.array(z.unknown()).max(200000).optional(),
     automationKeys: z.array(z.string().max(200)).max(200000).optional()
@@ -82,7 +84,7 @@ export async function POST(req: NextRequest) {
         if (input.action === 'import') {
             const parsed = importEnvelope.safeParse(input.backup);
             if (!parsed.success) throw new ApiError('فایل پشتیبان معتبر نیست یا نسخهٔ آن پشتیبانی نمی‌شود.');
-            const result = await rest('rpc/crm_import_complete', token, {
+            const result = await rest('rpc/crm_import_with_samples', token, {
                 method: 'POST',
                 body: JSON.stringify({ payload: parsed.data })
             });
