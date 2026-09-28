@@ -1,0 +1,36 @@
+begin;
+select set_config('test.user',gen_random_uuid()::text,true),set_config('test.org',gen_random_uuid()::text,true),set_config('test.customer',gen_random_uuid()::text,true),set_config('test.product',gen_random_uuid()::text,true);
+insert into auth.users(id,email,email_confirmed_at) values(current_setting('test.user')::uuid,'returns-test@example.invalid',now());
+insert into public.crm_orgs(id,name) values(current_setting('test.org')::uuid,'returns test');
+insert into public.crm_members(org_id,user_id,email,role) values(current_setting('test.org')::uuid,current_setting('test.user')::uuid,'returns-test@example.invalid','admin');
+insert into public.crm_records(id,org_id,kind,data) values(current_setting('test.customer')::uuid,current_setting('test.org')::uuid,'companies','{"name":"Test customer","status":"active"}'),(current_setting('test.product')::uuid,current_setting('test.org')::uuid,'products','{"name":"Test material","status":"active","stock":0,"unit":"kg"}');
+select set_config('request.jwt.claim.sub',current_setting('test.user'),true);
+set local role authenticated;
+do $$ declare sid uuid;p jsonb;q jsonb; begin
+ p=jsonb_build_object('customer_id',current_setting('test.customer'),'return_id','','request_date','','required_date','','details',jsonb_build_object('title',jsonb_build_object('fa','آزمون','en','Trial')),'rounds','[]'::jsonb);
+ sid=public.crm_sample_save(null,0,p);
+ if not exists(select 1 from public.crm_samples where id=sid and version=1) then raise exception 'save_failed';end if;
+ q=jsonb_build_object('id',gen_random_uuid(),'result','rejected','dispatch_date',current_date,'result_date',current_date,'production_date','','defects',jsonb_build_array('pinhole'),'reason',jsonb_build_object('fa','سرسوزنی','en',''),'action',jsonb_build_object('fa','','en',''),'comments',jsonb_build_object('fa','','en',''),'conditions',jsonb_build_object('fa','','en',''),'items',jsonb_build_array(jsonb_build_object('product_id',current_setting('test.product'),'quantity',3,'batch','5001','root_batch','5001','description',jsonb_build_object('fa','آستر','en',''),'grade',jsonb_build_object('fa','','en',''),'result',jsonb_build_object('fa','','en',''))));
+ p=jsonb_set(p,'{rounds}',jsonb_build_array(q));
+ perform public.crm_sample_save(sid,1,p);
+ begin perform public.crm_sample_save(sid,1,p);raise exception 'stale_save_allowed' using errcode='22000';exception when raise_exception then null;end;
+ begin perform public.crm_sample_save(sid,2,jsonb_set(p,'{rounds}','[]'));raise exception 'history_deleted' using errcode='22000';exception when raise_exception then null;end;
+ p=jsonb_set(p,'{rounds,0,reason,en}','"Pinholes"');perform public.crm_sample_save(sid,2,p);
+ if (select data#>>'{rounds,0,reason,en}' from public.crm_samples where id=sid)<>'Pinholes' then raise exception 'translation_not_saved';end if;
+ begin perform public.crm_sample_save(sid,3,jsonb_set(p,'{rounds,0,reason,fa}','"changed"'));raise exception 'history_modified' using errcode='22000';exception when raise_exception then null;end;
+ if (select (data->>'stock')::numeric from public.crm_records where id=current_setting('test.product')::uuid)<>0 then raise exception 'sample_changed_inventory';end if;
+
+ perform public.crm_import_with_samples(jsonb_build_object('format','peyvand-online','schemaVersion',1,'records','[]'::jsonb,'samples',jsonb_build_array(jsonb_build_object('id',gen_random_uuid(),'version',1,'data',p))));
+ if (select count(*) from public.crm_samples)<>2 then raise exception 'backup_restore_failed';end if;
+ begin perform public.crm_sample_delete(sid,1);raise exception 'stale_delete_allowed' using errcode='22000';exception when raise_exception then null;end;
+ perform set_config('request.jwt.claim.sub',gen_random_uuid()::text,true);
+ begin perform public.crm_sample_delete(sid,3);raise exception 'cross_tenant_delete_allowed' using errcode='22000';exception when insufficient_privilege then null;end;
+ perform set_config('request.jwt.claim.sub',current_setting('test.user'),true);
+ perform public.crm_sample_delete(sid,3);
+ if exists(select 1 from public.crm_samples where id=sid) then raise exception 'delete_failed';end if;
+ if (select count(*) from public.crm_samples)<>1 then raise exception 'other_case_deleted';end if;
+ if not exists(select 1 from public.crm_records where id=current_setting('test.product')::uuid and (data->>'stock')::numeric=0) then raise exception 'product_changed';end if;
+end $$;
+reset role;
+select 'PASS: version guard, tenant isolation, full case deletion and other records preserved' as result;
+rollback;
