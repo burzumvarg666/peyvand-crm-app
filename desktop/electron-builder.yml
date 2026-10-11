@@ -12,7 +12,7 @@ win:
     - target: dir
       arch: [x64]
   icon: desktop/icon.ico
-  signAndEditExecutable: false
+  signAndEditExecutable: true
   artifactName: Peyvand-CRM-${version}-Windows-${arch}.${ext}
 nsis:
   oneClick: false
