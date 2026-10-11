@@ -49,3 +49,8 @@ next-env.d.ts
 /desktop/ui/
 /windows-release/
 /tests/desktop.bundle.mjs
+
+/tests/offline-documents.bundle.mjs
+
+/tests/offline-browser.mjs
+/tests/offline-browser.bundle.mjs

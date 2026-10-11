@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
       - run: npm ci
       - name: Generate Windows icon from Peyvand logo
@@ -36,10 +36,11 @@ jobs:
           node desktop/make-icon.cjs
       - run: npm run build:desktop
       - run: npm run test:desktop
+      - run: npm run test:offline-documents
       - run: npx electron-builder --config desktop/electron-builder.yml --win portable --x64
       - uses: actions/upload-artifact@v4
         with:
-          name: Peyvand-CRM-0.5.4-Windows-x64-New-Logo
+          name: Peyvand-CRM-0.6.1-Windows-x64
           path: windows-release/*.exe
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 3

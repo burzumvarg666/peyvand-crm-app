@@ -1,6 +1,6 @@
 {
   "name": "peyvand-crm",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -26,7 +26,8 @@
     "desktop": "electron desktop/runtime",
     "portable:windows": "npm run build:desktop && electron-builder --config desktop/electron-builder.yml --win portable --x64",
     "installer:windows": "npm run build:desktop && electron-builder --config desktop/electron-builder.yml --win nsis --x64",
-    "test:desktop": "esbuild tests/desktop.test.mjs --bundle --platform=node --format=esm --outfile=tests/desktop.bundle.mjs && node --test tests/desktop.bundle.mjs"
+    "test:desktop": "esbuild tests/desktop.test.mjs --bundle --platform=node --format=esm --outfile=tests/desktop.bundle.mjs && node --test tests/desktop.bundle.mjs",
+    "test:offline-documents": "esbuild tests/offline-documents.test.mjs --bundle --platform=node --format=esm --packages=external --outfile=tests/offline-documents.bundle.mjs && node --test tests/offline-documents.bundle.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

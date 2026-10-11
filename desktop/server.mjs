@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises';
 import {resolve,sep,extname} from 'node:path';
 import {timingSafeEqual} from 'node:crypto';
 import {StoreError} from './store.mjs';
+import {sampleReportHtml} from '../lib/sample-report.ts';
 import {proformaHtml} from '../lib/proforma.ts';
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.woff2':'font/woff2','.png':'image/png','.ico':'image/x-icon'};
 export async function startServer({store,ui,token,backups}){
@@ -17,6 +18,8 @@ export async function startServer({store,ui,token,backups}){
    const a=Buffer.from(supplied),b=Buffer.from(token);if(a.length!==b.length||!timingSafeEqual(a,b))throw new StoreError('دسترسی فقط از پنجره برنامه مجاز است.',401);
    const url=new URL(req.url,origin);
    if(req.method==='GET'&&url.pathname==='/api/auth')return json({configured:true,authenticated:true,desktop:true});
+   if(req.method==='GET'&&['/api/samples','/api/returns'].includes(url.pathname))return json({rows:store.documents.list(url.pathname.split('/').pop())});
+   if(req.method==='GET'&&url.pathname.startsWith('/print/sample/')){const [, , ,id,roundId]=url.pathname.split('/');const all=store.documents.list('samples'),row=all.find(r=>r.id===id),round=row?.data.rounds.find(r=>r.id===roundId);if(!round)throw new StoreError('نمونه پیدا نشد.',404);res.setHeader('Content-Security-Policy',"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-ancestors 'none'");res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});res.end(sampleReportHtml(row.data,round,'en','results',all));return;}
    if(req.method==='GET'&&url.pathname==='/api/crm')return json(store.state());
    if(req.method==='GET'&&url.pathname.startsWith('/print/proforma/')){
     const state=store.state(),id=url.pathname.split('/').pop(),record=state.records.find(r=>r.id===id&&r.kind==='proformas');
@@ -24,12 +27,13 @@ export async function startServer({store,ui,token,backups}){
     res.setHeader('Content-Security-Policy',"default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; frame-ancestors 'none'");
     res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});res.end(proformaHtml(record,state.records,state.org?.name||'پیوند'));return;
    }
-   if(req.method==='POST'&&url.pathname==='/api/crm'){
+   if(req.method==='POST'&&['/api/crm','/api/samples','/api/returns'].includes(url.pathname)){
     if(req.headers.origin!==origin)throw new StoreError('مبدأ درخواست معتبر نیست.',403);
     if(!req.headers['content-type']?.startsWith('application/json'))throw new StoreError('فرمت درخواست معتبر نیست.',415);
-    const chunks=[];let total=0;for await(const chunk of req){total+=chunk.length;if(total>65536)throw new StoreError('درخواست بیش از حد بزرگ است.',413);chunks.push(chunk);}
+    const chunks=[];let total=0;for await(const chunk of req){total+=chunk.length;if(total>(url.pathname==='/api/crm'?65536:2*1024*1024))throw new StoreError('درخواست بیش از حد بزرگ است.',413);chunks.push(chunk);}
     let body;try{body=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw new StoreError('درخواست معتبر نیست.');}
     if(!body||typeof body!=='object')throw new StoreError('درخواست معتبر نیست.');
+    if(url.pathname!=='/api/crm'){backups?.snapshot('before-'+url.pathname.split('/').pop());return json(store.documents[url.pathname.split('/').pop()](body));}
     if(['save','delete','inventory','merge'].includes(body.action))backups?.snapshot('before-'+body.action);
     if(body.action==='workspace')store.createWorkspace(body.name);
     else if(body.action==='save')store.save(body);
