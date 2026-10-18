@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
                     const saved=previous?.kind==='proformas'?previous.data.items?.find((i:{product_id:string})=>i.product_id===item.product_id):undefined;
                     const product=products.find((p:{id:string})=>p.id===item.product_id);
                     if(!saved&&product.data.status!=='active')throw new ApiError('محصول غیرفعال را نمی‌توان به پیش‌فاکتور اضافه کرد.');
-                    return {...item,name:saved?.name??product.data.name,unit:saved?.unit??product.data.unit,unit_price:saved?.unit_price??product.data.price};
+                    return {...item,name:saved?.name??product.data.name,unit:saved?.unit??product.data.unit,unit_price:saved?.unit_price??product.data.price,product_code:saved?.product_code??product.data.sku??''};
                 });
 
             }

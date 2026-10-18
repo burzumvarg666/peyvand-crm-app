@@ -2,7 +2,8 @@
 import {NumberInput} from '@/components/ui/number-input';
 import {Input} from '@/components/ui/input';
 import {Textarea} from '@/components/ui/textarea';
-import {PersianDateInput,Pick} from './shared';
+import {ProformaFields} from './proforma-fields';
+import {PersianDateInput} from './shared';
 import type {Data,Kind} from '@/lib/crm';
 
 export function BusinessFields({kind,data,set}:{kind:Kind;data:Data;set:(key:keyof Data,value:unknown)=>void}){
@@ -21,14 +22,6 @@ export function BusinessFields({kind,data,set}:{kind:Kind;data:Data;set:(key:key
  <label className="full">قدم بعدی<Input maxLength={500} placeholder="تماس، ارسال نمونه، جلسه…" value={data.next_step} onChange={e=>set('next_step',e.target.value)}/></label>
  </>;
 
- if(kind==='proformas')return <>
-  <label>وضعیت پرداخت<Pick label="وضعیت پرداخت" value={data.payment_status} onChange={v=>set('payment_status',v)} options={[{value:'unpaid',label:'پرداخت‌نشده'},{value:'partial',label:'تسویهٔ ناقص'},{value:'paid',label:'تسویه‌شده'}]}/></label>
-  <label>روش تسویه<Input maxLength={120} value={data.payment_method} onChange={e=>set('payment_method',e.target.value)}/></label>
-  <label>نمایندهٔ خریدار<Input maxLength={160} value={data.buyer_representative} onChange={e=>set('buyer_representative',e.target.value)}/></label>
-  <label>کد اقتصادی<Input dir="ltr" maxLength={80} value={data.economic_code} onChange={e=>set('economic_code',e.target.value)}/></label>
-  <label>فکس خریدار<Input dir="ltr" maxLength={50} value={data.buyer_fax} onChange={e=>set('buyer_fax',e.target.value)}/></label>
-  <label className="full">آدرس مشتری در پیش‌فاکتور<Textarea rows={2} maxLength={1000} placeholder="اگر خالی باشد، آدرس پرونده مشتری چاپ می‌شود" value={data.billing_address} onChange={e=>set('billing_address',e.target.value)}/></label>
-  <label className="full">شرایط و ضوابط<Textarea rows={2} maxLength={3000} value={data.terms} onChange={e=>set('terms',e.target.value)}/></label>
- </>;
+ if(kind==='proformas')return <ProformaFields data={data} set={set}/>;
  return null;
 }

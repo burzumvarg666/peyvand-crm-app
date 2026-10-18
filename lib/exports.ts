@@ -1,9 +1,8 @@
+import {toRial} from './proforma-money';
 import ExcelJS from 'exceljs';
 import { labels, stageLabels, statusLabels, quoteStatusLabels, automationTriggerLabels, automationActionLabels, activityTypeLabels, activityDirectionLabels, quoteAmounts, type Row } from './crm';
 
-const amount = (n: number) => new Intl.NumberFormat('fa-IR').format(n);
 const faDate = (s: string) => s ? new Intl.DateTimeFormat('fa-IR-u-ca-persian', {dateStyle:'medium'}).format(new Date(s.length === 10 ? s + 'T12:00:00' : s)) : 'تعیین نشده';
-const safe = (v: unknown) => String(v ?? '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replaceAll('&', '&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 export const movementLabels = { in: 'ورود کالا', out: 'خروج کالا', adjustment: 'اصلاح شمارش', opening: 'موجودی اولیه' };
 
 export {proformaHtml} from './proforma';
@@ -20,8 +19,8 @@ export function buildWorkbook(items: Row[], allRows: Row[] = items) {
         headers = ['نام محصول','کد محصول','نوع محصول','کد رال','دسته‌بندی','واحد','قیمت فروش (تومان)','موجودی','حداقل موجودی','وضعیت','توضیحات'];
         values = items.map(({data:d}) => [d.name,d.sku,({paint:'رنگ',primer:'آستر',clearcoat:'کیلر',other:'سایر'}[d.product_type]),d.ral_code,d.category,d.unit,d.price,d.stock,d.min_stock,statusLabels[d.status],d.description]);
     } else if (kind === 'proformas') {
-        headers = ['شماره پیش‌فاکتور','عنوان','مشتری','تاریخ صدور (شمسی)','اعتبار (شمسی)','وضعیت','جمع اقلام (تومان)','تخفیف (تومان)','مالیات (تومان)','مبلغ نهایی (تومان)'];
-        values = items.map(r => { const t=quoteAmounts(r.data); return [r.data.quote_number,r.data.name,parentName(r),excelDate(r.created_at),excelDate(r.data.valid_until),quoteStatusLabels[r.data.quote_status],t.subtotal,t.discount,t.tax,t.total]; });
+        headers = ['شماره پیش‌فاکتور','شماره نامه','عنوان','مشتری','تاریخ (شمسی)','اعتبار (شمسی)','وضعیت','جمع محصولات (ریال)','تخفیف (ریال)','مالیات (ریال)','مبلغ نهایی (ریال)'];
+        values = items.map(r => { const t=quoteAmounts(r.data); return [r.data.quote_number,r.data.letter_number,r.data.name,parentName(r),excelDate(r.data.quote_date||r.created_at),excelDate(r.data.valid_until),quoteStatusLabels[r.data.quote_status],toRial(t.subtotal),toRial(t.discount),toRial(t.tax),toRial(t.total)]; });
     } else if (kind === 'stock_movements') {
         headers = ['محصول','نوع عملیات','تغییر موجودی','موجودی پس از عملیات','تاریخ (شمسی)','مرجع','توضیحات'];
         values = items.map(r => [parentName(r) || r.data.name,movementLabels[r.data.movement_type],r.data.movement_quantity,r.data.stock_after,excelDate(r.created_at),r.data.movement_reference,r.data.description]);
@@ -47,9 +46,8 @@ export function buildWorkbook(items: Row[], allRows: Row[] = items) {
     const quotes=items.filter(r=>r.kind==='proformas');
     if(quotes.length){
         const lines: Value[][]=[];
-        for(const q of quotes)for(const item of q.data.items)lines.push([q.data.quote_number,parentName(q),item.name,item.unit||'عدد',item.quantity,item.unit_price,Math.round(item.quantity*item.unit_price)]);
-        const sheet=addSheet('اقلام پیش‌فاکتور',['شماره پیش‌فاکتور','مشتری','محصول','واحد','مقدار','قیمت واحد (تومان)','مبلغ ردیف (تومان)'],lines);
-        for(let r=2;r<=sheet.rowCount;r++)sheet.getCell(`G${r}`).value={formula:`ROUND(E${r}*F${r},0)`,result:lines[r-2][6] as number};
+        for(const q of quotes)for(const [index,item] of q.data.items.entries())lines.push([q.data.quote_number,q.data.letter_number,parentName(q),item.name,item.product_code||'',item.unit||'عدد',item.package_count??'',item.package_amount??'',item.quantity,toRial(item.unit_price),toRial(quoteAmounts(q.data).lines[index])]);
+        addSheet('محصولات پیش‌فاکتور',['شماره پیش‌فاکتور','شماره نامه','مشتری','محصول','کد محصول','واحد','تعداد بسته','مقدار هر بسته','مقدار کل','قیمت واحد (ریال)','مبلغ ردیف (ریال)'],lines);
     }
     return wb;
 }
