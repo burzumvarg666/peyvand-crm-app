@@ -5,16 +5,15 @@ const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cvvqaftqzbuxctyabtgu.s
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_Ig_H12X9bI-T8jLyEYm7-Q_Soe_fAhs';
 export function configured() { return !!SUPABASE_URL && !!SUPABASE_ANON_KEY; }
 export class ApiError extends Error {
-    constructor(message: string, public status = 400) { super(message); }
+    constructor(message: string, public status = 400, public code?: string) { super(message); }
 }
 export async function sb(path: string, token?: string, init: RequestInit = {}) { if (!configured())
     throw new ApiError('پایگاه داده هنوز متصل نشده است.', 503); const r = await fetch(SUPABASE_URL + path, { ...init, cache: 'no-store', headers: { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init.headers }, signal: AbortSignal.timeout(15000) }); const text = await r.text(); const data = text ? JSON.parse(text) : null; if (!r.ok) {
     if (path.startsWith('/auth/v1/')) {
         const code=typeof data?.code==='string'?data.code:undefined;
-        const upstreamMessage=typeof data?.msg==='string'?data.msg:typeof data?.message==='string'?data.message:'';
-        console.warn('Supabase Auth failure', { code: code||'unknown', status:r.status, message:upstreamMessage.slice(0,240) });
+        console.warn('Supabase Auth failure', {code:code||'unknown',status:r.status,path:path.split('?')[0]});
         const authError=authFailure(code,r.status);
-        throw new ApiError(authError.message,authError.status);
+        throw new ApiError(authError.message,authError.status,code);
     }
     if (r.status === 401)
         throw new ApiError('نشست منقضی شده است. دوباره وارد شوید.', 401);
@@ -80,5 +79,5 @@ catch {
     throw new ApiError('درخواست معتبر نیست.');
 } }
 export function fail(e: unknown) { if (e instanceof ApiError)
-    return NextResponse.json({ error: e.message }, { status: e.status }); return NextResponse.json({ error: 'خطا در ارتباط با سرویس. دوباره تلاش کنید.' }, { status: 500 }); }
+    return NextResponse.json({error:e.message,...(e.code?{code:e.code}:{})},{status:e.status,headers:{'Cache-Control':'no-store'}}); return NextResponse.json({ error: 'خطا در ارتباط با سرویس. دوباره تلاش کنید.' }, { status: 500 }); }
 export async function rest(table: string, token: string, init: RequestInit = {}) { return sb('/rest/v1/' + table, token, init); }

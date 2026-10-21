@@ -49,3 +49,8 @@ next-env.d.ts
 /desktop/ui/
 /windows-release/
 /tests/desktop.bundle.mjs
+
+/tests/auth-flow.bundle.mjs
+/tests/auth-fixtures.bundle.mjs
+
+/tmp/

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { session, rest, body, fail, ApiError } from '@/lib/server';
+import { session, rest, sb, body, fail, ApiError } from '@/lib/server';
 import {sampleSchema} from '@/lib/samples';
 import {automationCandidates} from '@/lib/automation';
 import {localDay,type Row} from '@/lib/crm';
+import {authRedirect} from '@/lib/auth-flow';
 import { dataSchema, kinds, validateSales } from '@/lib/crm';
 export const dynamic = 'force-dynamic';
 const uuid = z.string().uuid();
@@ -193,10 +194,24 @@ export async function POST(req: NextRequest) {
 
         if (m.role !== 'admin') throw new ApiError('این عملیات به دسترسی مدیر نیاز دارد.', 403);
         if (input.action === 'invite') {
-            const p = z.object({ email: z.string().trim().email().max(254), role: z.enum(['sales','viewer']) }).safeParse(input);
-            if (!p.success) throw new ApiError('ایمیل یا نقش معتبر نیست.');
-            await rest('crm_invites', token, { method: 'POST', body: JSON.stringify({ org_id: m.org_id, email: p.data.email.toLowerCase(), role: p.data.role }) });
-            return NextResponse.json({ ok: true });
+            const p=z.object({email:z.string().trim().email().max(254).transform(s=>s.toLowerCase()),role:z.enum(['sales','viewer'])}).safeParse(input);
+            if(!p.success)throw new ApiError('ایمیل یا نقش معتبر نیست.');
+            const email=p.data.email;
+            const members=await rest(`crm_members?org_id=eq.${m.org_id}&email=eq.${encodeURIComponent(email)}&select=user_id`,token);
+            if(members.length)throw new ApiError('این کاربر هم‌اکنون عضو تیم است.',409);
+            const existing=await rest(`crm_invites?org_id=eq.${m.org_id}&email=eq.${encodeURIComponent(email)}&select=id,role`,token);
+            if(existing.length&&existing[0].role!==p.data.role)throw new ApiError('برای تغییر نقش، دعوت قبلی را لغو و دوباره ثبت کنید.',409);
+            if(!existing.length)await rest('crm_invites',token,{method:'POST',body:JSON.stringify({org_id:m.org_id,email,role:p.data.role})});
+            const link=new URL(authRedirect('invite'));link.searchParams.set('auth','signup');link.searchParams.set('email',email);
+            try{
+                // Supabase sends a one-time login link. Possession of the email is verified
+                // before membership is accepted; no elevated API key is needed here.
+                await sb('/auth/v1/otp?redirect_to='+encodeURIComponent(authRedirect('invite')),undefined,{method:'POST',body:JSON.stringify({email,create_user:true})});
+                return NextResponse.json({ok:true,delivery:'requested',join_url:link.toString()});
+            }catch(e){
+                const message=e instanceof ApiError?e.message:'ارتباط با سرویس ارسال ایمیل برقرار نشد.';
+                return NextResponse.json({ok:true,delivery:'failed',warning:'دعوت ثبت شد، اما ارسال لینک ایمیلی انجام نشد: '+message,join_url:link.toString()});
+            }
         }
         if (input.action === 'revokeInvite') {
             const id = uuid.safeParse(input.id);
