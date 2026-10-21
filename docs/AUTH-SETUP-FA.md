@@ -2,7 +2,7 @@
 
 آدرس عمومی این پروژه:
 
-https://burzumvarg666-farhad-telegram-bot.vercel.app/
+https://peyvand-crm-app.vercel.app/
 
 ## آدرس بازگشت ایمیل‌ها
 
@@ -14,7 +14,7 @@ https://supabase.com/dashboard/project/cvvqaftqzbuxctyabtgu/auth/url-configurati
 2. در Redirect URLs این مقدار را اضافه کنید؛ آدرس‌های قبلی را حذف نکنید:
 
 ```
-https://burzumvarg666-farhad-telegram-bot.vercel.app/**
+https://peyvand-crm-app.vercel.app/**
 ```
 
 3. تنظیمات را ذخیره کنید و یک لینک تازه درخواست کنید. لینک‌های قبلی ممکن است همچنان به آدرس قدیمی بروند.

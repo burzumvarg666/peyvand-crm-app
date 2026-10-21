@@ -23,7 +23,7 @@ test('callback credentials are removed from the address before network operation
  assert.equal(clean,'/?auth=recovery');assert.ok(!clean.includes('secret'));
 });
 test('redirect is server controlled, not taken from browser input',()=>{
- const before=process.env.APP_URL;try{delete process.env.APP_URL;assert.equal(new URL(authRedirect()).hostname,'burzumvarg666-farhad-telegram-bot.vercel.app');assert.equal(new URL(authRedirect('invite')).searchParams.get('auth'),'invite');process.env.APP_URL='https://app.example/other?injected=yes#hash';assert.equal(authRedirect('recovery'),'https://app.example/?auth=recovery');process.env.APP_URL='http://unsafe.example';assert.throws(()=>authRedirect());}finally{if(before===undefined)delete process.env.APP_URL;else process.env.APP_URL=before;}
+ const before=process.env.APP_URL;try{delete process.env.APP_URL;assert.equal(new URL(authRedirect()).hostname,'peyvand-crm-app.vercel.app');assert.equal(new URL(authRedirect('invite')).searchParams.get('auth'),'invite');process.env.APP_URL='https://app.example/other?injected=yes#hash';assert.equal(authRedirect('recovery'),'https://app.example/?auth=recovery');process.env.APP_URL='http://unsafe.example';assert.throws(()=>authRedirect());}finally{if(before===undefined)delete process.env.APP_URL;else process.env.APP_URL=before;}
 });
 test('expired or malformed tokens trigger refresh, mail restrictions are distinct',()=>{
  assert.equal(authFailure('bad_jwt',403).status,401);assert.equal(authFailure('refresh_token_already_used',400).status,401);
