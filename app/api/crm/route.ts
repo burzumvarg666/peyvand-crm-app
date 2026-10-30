@@ -53,7 +53,7 @@ export async function GET() { try {
     const [org, records, members, invites, audit] = await Promise.all([
         rest(`crm_orgs?id=eq.${m.org_id}&select=id,name`, token),
         all(`crm_records?org_id=eq.${m.org_id}&select=*&order=created_at.desc,id`, token),
-        all(`crm_members?org_id=eq.${m.org_id}&select=user_id,email,role&order=user_id`, token),
+        all(`crm_members?org_id=eq.${m.org_id}&select=user_id,email,role,active&order=user_id`, token),
         m.role === 'admin' ? all(`crm_invites?org_id=eq.${m.org_id}&select=id,email,role&order=id`, token) : [],
         rest(`crm_audit?org_id=eq.${m.org_id}&select=id,record_id,action,label,created_at,actor_id&order=created_at.desc&limit=100`, token)
     ]);
@@ -81,6 +81,14 @@ export async function POST(req: NextRequest) {
         const m = await membership(token, user.id);
         if (!m) throw new ApiError('فضای کاری یافت نشد.', 404);
         if (m.role === 'viewer') throw new ApiError('دسترسی شما فقط مشاهده است.', 403);
+
+        if (input.action === 'memberAccess') {
+            if (m.role !== 'admin') throw new ApiError('فقط مدیر می‌تواند دسترسی اعضا را تغییر دهد.', 403);
+            const p=z.object({user_id:uuid,role:z.enum(['admin','sales','viewer']),active:z.boolean()}).safeParse(input);
+            if (!p.success) throw new ApiError('اطلاعات عضو معتبر نیست.');
+            await rest('rpc/crm_set_member_access',token,{method:'POST',body:JSON.stringify({target_user:p.data.user_id,new_role:p.data.role,new_active:p.data.active})});
+            return NextResponse.json({ok:true});
+        }
 
         if (input.action === 'import') {
             if (m.role !== 'admin') throw new ApiError('درون‌ریزی پشتیبان فقط برای مدیر مجاز است.', 403);

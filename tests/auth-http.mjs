@@ -25,6 +25,7 @@ before(async()=>{
   if(u.pathname==='/auth/v1/user')return auth==='Bearer expired-access'?send({code:'bad_jwt'},403):auth?send(user):send({code:'bad_jwt'},401);
   if(['/auth/v1/resend','/auth/v1/recover','/auth/v1/logout'].includes(u.pathname))return send({});
   if(u.pathname==='/auth/v1/otp')return body.email==='blocked@example.com'?send({code:'email_address_not_authorized'},403):send({});
+  if(u.pathname==='/rest/v1/rpc/crm_set_member_access')return send(null);
   if(u.pathname==='/rest/v1/rpc/crm_access_status')return send({allowed:true,platformAdmin:false});
   if(u.pathname==='/rest/v1/crm_members')return send(u.searchParams.has('email')?[]:[{org_id:org,role:auth==='Bearer viewer-access'?'viewer':auth==='Bearer sales-access'?'sales':'admin'}]);
   if(u.pathname==='/rest/v1/crm_invites'){
@@ -95,3 +96,12 @@ test('admin invitation sends a one-time link, retries keep one invite and failur
   for(const access of ['sales-access','viewer-access']){const r=await client({peyvand_access:access}).call('/api/crm',{action:'import',backup:{format:'peyvand-online',schemaVersion:1,records:[]}});assert.equal(r.status,403);}
   assert.equal(calls.slice(before).filter(c=>c.path==='/rest/v1/rpc/crm_import_with_samples').length,0);
  });
+
+test('only an admin can change a member role or access',async()=>{
+ const input={action:'memberAccess',user_id:'33333333-3333-4333-8333-333333333333',role:'viewer',active:false};
+ const before=calls.length;
+ for(const access of ['sales-access','viewer-access'])assert.equal((await client({peyvand_access:access}).call('/api/crm',input)).status,403);
+ assert.equal(calls.slice(before).filter(c=>c.path==='/rest/v1/rpc/crm_set_member_access').length,0);
+ assert.equal((await client({peyvand_access:'valid-access'}).call('/api/crm',input)).status,200);
+ assert.deepEqual(calls.at(-1).body,{target_user:input.user_id,new_role:'viewer',new_active:false});
+});

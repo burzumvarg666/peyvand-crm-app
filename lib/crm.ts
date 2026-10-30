@@ -60,6 +60,7 @@ export type Member = {
     user_id: string;
     email: string;
     role: 'admin' | 'sales' | 'viewer';
+    active?: boolean;
 };
 export type Audit = {
     id: string;
