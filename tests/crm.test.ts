@@ -99,3 +99,15 @@ test('invoice print and Excel consistently use rial and retain letter, code and 
  assert.equal(products.getRow(2).getCell(h.indexOf('تعداد بسته')).value,10);
  assert.equal(products.getRow(2).getCell(h.indexOf('مقدار کل')).value,200);
 });
+
+test('custom product type survives parsing and appears in product Excel export', () => {
+ const old=dataSchema.parse({name:'محصول قدیمی'});
+ assert.equal(old.product_type_custom,'');
+ const data=dataSchema.parse({name:'تینر فوری',product_type:'other',product_type_custom:'  تینر  '});
+ assert.equal(data.product_type_custom,'تینر');
+ const row={...demoState().records[0],kind:'products' as const,data};
+ const saved=dataSchema.parse(JSON.parse(JSON.stringify(data)));
+ assert.equal(saved.product_type_custom,'تینر');
+ const sheet=buildWorkbook([row]).worksheets[0];
+ assert.equal(sheet.getRow(2).getCell(4).value,'تینر');
+});

@@ -27,7 +27,7 @@ const coreDataSchema = z.object({ name: z.string().trim().min(1, 'عنوان ر�
 export const salesSchema = z.object({
     closed_on: date.default(''),
     related_deal_id: z.union([z.literal(''),z.string().uuid()]).default(''),
-    archived: z.boolean().default(false), product_type: z.enum(['paint','primer','clearcoat','other']).default('other'), ral_code: z.string().trim().max(30).default(''),
+    archived: z.boolean().default(false), product_type: z.enum(['paint','primer','clearcoat','other']).default('other'), product_type_custom: z.string().trim().max(100).default(''), ral_code: z.string().trim().max(30).default(''),
     sku: z.string().trim().max(80).default(''), category: z.string().trim().max(100).default(''),
     min_stock: z.number().finite().min(0).max(1e12).default(0),
     movement_type: z.enum(['in', 'out', 'adjustment', 'opening']).default('in'),
@@ -43,6 +43,9 @@ export const salesSchema = z.object({
 });
 export const dataSchema = coreDataSchema.merge(salesSchema).strict();
 export type Data = z.infer<typeof dataSchema>;
+export const productTypeLabels = {paint:'رنگ',primer:'آستر',clearcoat:'کیلر',other:'سایر'} as const;
+export function productTypeLabel(data: Pick<Data,'product_type'|'product_type_custom'>) { return data.product_type === 'other' && data.product_type_custom ? data.product_type_custom : productTypeLabels[data.product_type]; }
+
 export type Row = {
     id: string;
     org_id: string;

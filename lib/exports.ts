@@ -1,6 +1,6 @@
 import {toRial} from './proforma-money';
 import ExcelJS from 'exceljs';
-import { labels, stageLabels, statusLabels, quoteStatusLabels, automationTriggerLabels, automationActionLabels, activityTypeLabels, activityDirectionLabels, quoteAmounts, type Row } from './crm';
+import { productTypeLabel, labels, stageLabels, statusLabels, quoteStatusLabels, automationTriggerLabels, automationActionLabels, activityTypeLabels, activityDirectionLabels, quoteAmounts, type Row } from './crm';
 
 const faDate = (s: string) => s ? new Intl.DateTimeFormat('fa-IR-u-ca-persian', {dateStyle:'medium'}).format(new Date(s.length === 10 ? s + 'T12:00:00' : s)) : 'تعیین نشده';
 export const movementLabels = { in: 'ورود کالا', out: 'خروج کالا', adjustment: 'اصلاح شمارش', opening: 'موجودی اولیه' };
@@ -17,7 +17,7 @@ export function buildWorkbook(items: Row[], allRows: Row[] = items) {
     let headers: string[], values: Value[][];
     if (kind === 'products') {
         headers = ['نام محصول','کد محصول','نوع محصول','کد رال','دسته‌بندی','واحد','قیمت فروش (تومان)','موجودی','حداقل موجودی','وضعیت','توضیحات'];
-        values = items.map(({data:d}) => [d.name,d.sku,({paint:'رنگ',primer:'آستر',clearcoat:'کیلر',other:'سایر'}[d.product_type]),d.ral_code,d.category,d.unit,d.price,d.stock,d.min_stock,statusLabels[d.status],d.description]);
+        values = items.map(({data:d}) => [d.name,d.sku,productTypeLabel(d),d.ral_code,d.category,d.unit,d.price,d.stock,d.min_stock,statusLabels[d.status],d.description]);
     } else if (kind === 'proformas') {
         headers = ['شماره پیش‌فاکتور','شماره نامه','عنوان','مشتری','تاریخ (شمسی)','اعتبار (شمسی)','وضعیت','جمع محصولات (ریال)','تخفیف (ریال)','مالیات (ریال)','مبلغ نهایی (ریال)'];
         values = items.map(r => { const t=quoteAmounts(r.data); return [r.data.quote_number,r.data.letter_number,r.data.name,parentName(r),excelDate(r.data.quote_date||r.created_at),excelDate(r.data.valid_until),quoteStatusLabels[r.data.quote_status],toRial(t.subtotal),toRial(t.discount),toRial(t.tax),toRial(t.total)]; });
