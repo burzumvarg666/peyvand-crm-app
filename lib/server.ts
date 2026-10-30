@@ -24,6 +24,7 @@ export async function sb(path: string, token?: string, init: RequestInit = {}) {
     if (r.status === 403 || data?.code === '42501')
         throw new ApiError('اجازه انجام این عملیات را ندارید.', 403);
     const returnErrors: Record<string,string> = {
+        snapshot_too_large:'حجم نسخهٔ اطلاعات بیش از حد مجاز است؛ برای تهیه نسخهٔ پایگاه داده با پشتیبانی تماس بگیرید.',
         invalid_batch_details:'شماره بچ مواد و برای مواد تینرخورده شماره بچ تینر الزامی است.',
         thinned_requires_quarantine:'مواد تینرخورده باید در قرنطینه دریافت شوند.',
         receive_first:'ابتدا دریافت مواد برگشتی را ثبت کنید.',

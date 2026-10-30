@@ -27,6 +27,7 @@ before(async()=>{
   if(u.pathname==='/auth/v1/otp')return body.email==='blocked@example.com'?send({code:'email_address_not_authorized'},403):send({});
   if(['/rest/v1/rpc/crm_set_member_access','/rest/v1/rpc/crm_set_member_delete_permission'].includes(u.pathname))return send(null);
   if(u.pathname==='/rest/v1/crm_records'){if(req.method==='DELETE')return send([{id:'33333333-3333-4333-8333-333333333333'}]);if(u.searchParams.has('parent_id'))return send([]);return send([{id:'33333333-3333-4333-8333-333333333333',kind:'companies',data:{},version:1}]);}
+  if(u.pathname==='/rest/v1/rpc/crm_workspace_snapshot')return auth==='Bearer valid-access'?send({format:'peyvand-workspace-snapshot',schemaVersion:2,workspace:{id:org},records:[],members:[],audit:[]}):send({code:'42501'},403);
   if(u.pathname==='/rest/v1/rpc/crm_access_status')return send({allowed:true,platformAdmin:false});
   if(u.pathname==='/rest/v1/crm_members')return send(u.searchParams.has('email')?[]:[{org_id:org,role:auth==='Bearer viewer-access'?'viewer':(auth==='Bearer sales-access'||auth==='Bearer authorized-sales-access')?'sales':'admin',can_delete:auth==='Bearer authorized-sales-access'}]);
   if(u.pathname==='/rest/v1/crm_invites'){
@@ -117,4 +118,9 @@ test('delete permission can only be managed by admin and lets a sales member del
  assert.equal((await client({peyvand_access:'sales-access'}).call('/api/crm',{action:'delete',id:user_id,version:1})).status,403);
  assert.equal((await client({peyvand_access:'authorized-sales-access'}).call('/api/crm',{action:'delete',id:user_id,version:1})).status,200);
  assert.equal((await client({peyvand_access:'authorized-sales-access'}).call('/api/crm',{action:'import',backup:{}})).status,403);
+});
+
+test('workspace archive download is available only to administrators',async()=>{
+ for(const access of ['sales-access','viewer-access'])assert.equal((await client({peyvand_access:access}).call('/api/backup')).status,403);
+ const result=await client({peyvand_access:'valid-access'}).call('/api/backup');assert.equal(result.status,200);assert.equal(result.data.format,'peyvand-workspace-snapshot');
 });
