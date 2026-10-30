@@ -25,9 +25,10 @@ before(async()=>{
   if(u.pathname==='/auth/v1/user')return auth==='Bearer expired-access'?send({code:'bad_jwt'},403):auth?send(user):send({code:'bad_jwt'},401);
   if(['/auth/v1/resend','/auth/v1/recover','/auth/v1/logout'].includes(u.pathname))return send({});
   if(u.pathname==='/auth/v1/otp')return body.email==='blocked@example.com'?send({code:'email_address_not_authorized'},403):send({});
-  if(u.pathname==='/rest/v1/rpc/crm_set_member_access')return send(null);
+  if(['/rest/v1/rpc/crm_set_member_access','/rest/v1/rpc/crm_set_member_delete_permission'].includes(u.pathname))return send(null);
+  if(u.pathname==='/rest/v1/crm_records'){if(req.method==='DELETE')return send([{id:'33333333-3333-4333-8333-333333333333'}]);if(u.searchParams.has('parent_id'))return send([]);return send([{id:'33333333-3333-4333-8333-333333333333',kind:'companies',data:{},version:1}]);}
   if(u.pathname==='/rest/v1/rpc/crm_access_status')return send({allowed:true,platformAdmin:false});
-  if(u.pathname==='/rest/v1/crm_members')return send(u.searchParams.has('email')?[]:[{org_id:org,role:auth==='Bearer viewer-access'?'viewer':auth==='Bearer sales-access'?'sales':'admin'}]);
+  if(u.pathname==='/rest/v1/crm_members')return send(u.searchParams.has('email')?[]:[{org_id:org,role:auth==='Bearer viewer-access'?'viewer':(auth==='Bearer sales-access'||auth==='Bearer authorized-sales-access')?'sales':'admin',can_delete:auth==='Bearer authorized-sales-access'}]);
   if(u.pathname==='/rest/v1/crm_invites'){
    if(req.method==='POST'){invites.set(body.email,body);return send(null,201);}
    const email=u.searchParams.get('email')?.replace(/^eq\./,'');return send(email&&invites.has(email)?[{id:'invite-id',...invites.get(email)}]:[]);
@@ -104,4 +105,16 @@ test('only an admin can change a member role or access',async()=>{
  assert.equal(calls.slice(before).filter(c=>c.path==='/rest/v1/rpc/crm_set_member_access').length,0);
  assert.equal((await client({peyvand_access:'valid-access'}).call('/api/crm',input)).status,200);
  assert.deepEqual(calls.at(-1).body,{target_user:input.user_id,new_role:'viewer',new_active:false});
+});
+
+test('delete permission can only be managed by admin and lets a sales member delete',async()=>{
+ const user_id='33333333-3333-4333-8333-333333333333';const input={action:'memberDeletePermission',user_id,allow_delete:true};
+ let count=calls.filter(c=>c.path==='/rest/v1/rpc/crm_set_member_delete_permission').length;
+ for(const access of ['sales-access','viewer-access'])assert.equal((await client({peyvand_access:access}).call('/api/crm',input)).status,403);
+ assert.equal(calls.filter(c=>c.path==='/rest/v1/rpc/crm_set_member_delete_permission').length,count);
+ assert.equal((await client({peyvand_access:'valid-access'}).call('/api/crm',input)).status,200);
+ assert.deepEqual(calls.at(-1).body,{target_user:user_id,allow_delete:true});
+ assert.equal((await client({peyvand_access:'sales-access'}).call('/api/crm',{action:'delete',id:user_id,version:1})).status,403);
+ assert.equal((await client({peyvand_access:'authorized-sales-access'}).call('/api/crm',{action:'delete',id:user_id,version:1})).status,200);
+ assert.equal((await client({peyvand_access:'authorized-sales-access'}).call('/api/crm',{action:'import',backup:{}})).status,403);
 });

@@ -37,7 +37,7 @@ const inventoryInput = z.object({
     reference: z.string().max(160).default(''),
     description: z.string().max(10000).default('')
 });
-async function membership(token: string, userId: string) { const m = await rest(`crm_members?user_id=eq.${userId}&select=org_id,role&limit=1`, token); return m[0]; }
+async function membership(token: string, userId: string) { const m = await rest(`crm_members?user_id=eq.${userId}&select=org_id,role,can_delete&limit=1`, token); return m[0]; }
 async function all(table: string, token: string) { const result: unknown[] = []; for (let offset = 0; offset < 100000; offset += 500) {
     const page = await rest(table + `&limit=500&offset=${offset}`, token);
     result.push(...page);
@@ -53,7 +53,7 @@ export async function GET() { try {
     const [org, records, members, invites, audit] = await Promise.all([
         rest(`crm_orgs?id=eq.${m.org_id}&select=id,name`, token),
         all(`crm_records?org_id=eq.${m.org_id}&select=*&order=created_at.desc,id`, token),
-        all(`crm_members?org_id=eq.${m.org_id}&select=user_id,email,role,active&order=user_id`, token),
+        all(`crm_members?org_id=eq.${m.org_id}&select=user_id,email,role,active,can_delete&order=user_id`, token),
         m.role === 'admin' ? all(`crm_invites?org_id=eq.${m.org_id}&select=id,email,role&order=id`, token) : [],
         rest(`crm_audit?org_id=eq.${m.org_id}&select=id,record_id,action,label,created_at,actor_id&order=created_at.desc&limit=100`, token)
     ]);
@@ -63,7 +63,7 @@ export async function GET() { try {
             if(added)records.push(added);
         }
     }
-    return NextResponse.json({ platformAdmin:access.platformAdmin, org: org[0], role: m.role, user: { id: user.id, email: user.email }, records, members, invites, audit });
+    return NextResponse.json({ platformAdmin:access.platformAdmin, org: org[0], role: m.role, canDelete: m.role==='admin'||(m.role==='sales'&&m.can_delete===true), user: { id: user.id, email: user.email }, records, members, invites, audit });
 } catch (e) { return fail(e); } }
 export async function POST(req: NextRequest) {
     try {
@@ -81,6 +81,14 @@ export async function POST(req: NextRequest) {
         const m = await membership(token, user.id);
         if (!m) throw new ApiError('فضای کاری یافت نشد.', 404);
         if (m.role === 'viewer') throw new ApiError('دسترسی شما فقط مشاهده است.', 403);
+
+        if (input.action === 'memberDeletePermission') {
+            if (m.role !== 'admin') throw new ApiError('فقط مدیر می‌تواند دسترسی اعضا را تغییر دهد.',403);
+            const p=z.object({user_id:uuid,allow_delete:z.boolean()}).safeParse(input);
+            if (!p.success) throw new ApiError('اطلاعات عضو معتبر نیست.');
+            await rest('rpc/crm_set_member_delete_permission',token,{method:'POST',body:JSON.stringify({target_user:p.data.user_id,allow_delete:p.data.allow_delete})});
+            return NextResponse.json({ok:true});
+        }
 
         if (input.action === 'memberAccess') {
             if (m.role !== 'admin') throw new ApiError('فقط مدیر می‌تواند دسترسی اعضا را تغییر دهد.', 403);
@@ -181,7 +189,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (input.action === 'delete') {
-            if (m.role !== 'admin') throw new ApiError('فقط مدیر می‌تواند رکوردها را حذف کند.', 403);
+            if (m.role !== 'admin' && !(m.role === 'sales' && m.can_delete === true)) throw new ApiError('اجازه حذف رکورد را ندارید.', 403);
             const p = z.object({ id: uuid, version: z.number().int().positive() }).safeParse(input);
             if (!p.success) throw new ApiError('شناسه معتبر نیست.');
             const current = await rest(`crm_records?id=eq.${p.data.id}&org_id=eq.${m.org_id}&select=id,kind,data,version&limit=1`, token);

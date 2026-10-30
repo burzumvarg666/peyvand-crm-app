@@ -61,6 +61,7 @@ export type Member = {
     email: string;
     role: 'admin' | 'sales' | 'viewer';
     active?: boolean;
+    can_delete?: boolean;
 };
 export type Audit = {
     id: string;
@@ -73,6 +74,7 @@ export type Audit = {
 export type State = {
     desktop?: boolean;
     platformAdmin?: boolean;
+    canDelete?: boolean;
     notifications?: { key: string; label: string }[];
     org: {
         id: string;
