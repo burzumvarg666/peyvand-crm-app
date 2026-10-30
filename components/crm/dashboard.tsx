@@ -6,13 +6,14 @@ import {Button} from '@/components/ui/button';
 import {ChartContainer} from '@/components/ui/chart';
 import {Progress} from '@/components/ui/progress';
 import {Pick,NoRows,num,date} from './shared';
+import {personalFollowups} from '@/lib/personal-followups';
 import {stages,stageLabels,quoteStatuses,quoteStatusLabels,quoteAmounts,localDay,addDays,type Row,type Audit} from '@/lib/crm';
 
 const amount=(n:number)=>n!==0&&Math.abs(n)<0.01?'< 0.01':new Intl.NumberFormat('en-US',{maximumFractionDigits:2}).format(n);
 const short=(n:number)=>n>=1e9?amount(n/1e9)+' میلیارد':n>=1e6?amount(n/1e6)+' میلیون':amount(n);
 const money=(n:number)=>amount(n)+' تومان';
 
-export function Dashboard({rows,audit,onNavigate,onOpen}:{rows:Row[];audit:Audit[];onNavigate:(v:string,filter?:string)=>void;onOpen:(id:string)=>void}){
+export function Dashboard({rows,audit,userId,onNavigate,onOpen}:{rows:Row[];audit:Audit[];userId:string;onNavigate:(v:string,filter?:string)=>void;onOpen:(id:string)=>void}){
  const [period,setPeriod]=useState('90');
  const now=localDay(),cutoff=period==='all'?'0000-01-01':addDays(now,-Number(period)+1);
  const deals=rows.filter(r=>r.kind==='deals'&&r.created_at.slice(0,10)>=cutoff);
@@ -22,6 +23,7 @@ export function Dashboard({rows,audit,onNavigate,onOpen}:{rows:Row[];audit:Audit
  const pipeline=open.reduce((sum,r)=>sum+r.data.amount,0),winRate=closed.length?Math.round(won.length/closed.length*100):0;
  const tasks=rows.filter(r=>['tasks','activities'].includes(r.kind)&&r.data.status==='open').sort((a,b)=>(a.data.due||'9999').localeCompare(b.data.due||'9999'));
  const late=tasks.filter(r=>r.data.due&&r.data.due<now),todayTasks=tasks.filter(r=>r.data.due===now);
+ const mine=personalFollowups(rows,userId,now),myLate=mine.filter(r=>r.data.due<now).length;
  const products=rows.filter(r=>r.kind==='products'&&r.data.status==='active'),lowStock=products.filter(r=>r.data.stock<=r.data.min_stock);
  const quotes=rows.filter(r=>r.kind==='proformas'&&r.created_at.slice(0,10)>=cutoff);
  const quoteData=quoteStatuses.map((status,i)=>({name:quoteStatusLabels[status],status,value:quotes.filter(r=>r.data.quote_status===status).length,fill:['#8dabc1','#e8b655','#36ad95','#d5776b'][i]}));
@@ -43,6 +45,7 @@ export function Dashboard({rows,audit,onNavigate,onOpen}:{rows:Row[];audit:Audit
    <button className="overview-stat" onClick={()=>onNavigate('proformas')}><div><span>پیش‌فاکتورهای در انتظار</span><FileCheck2 size={22}/></div><strong dir="ltr">{short(pendingQuotes)}</strong><span className="stat-unit">تومان · پیش‌نویس و ارسال‌شده</span><span className="stat-link">مشاهده پیش‌فاکتورها <ArrowUpLeft size={16}/></span></button>
    <button className={'overview-stat '+(lowStock.length?'stat-warm':'')} onClick={()=>onNavigate('inventory','low')}><div><span>نیاز به تأمین کالا</span><Boxes size={22}/></div><strong>{num(lowStock.length)}<em> محصول</em></strong><span className="stat-unit">موجودی برابر یا کمتر از حداقل</span><span className="stat-link">بررسی انبار <ArrowUpLeft size={16}/></span></button>
   </section>
+  <section className="panel"><div className="section-title"><div><h2>پیگیری‌های من</h2><p>مواردی که به شما سپرده شده و موعدشان امروز یا گذشته است</p></div><span className={'badge '+(myLate?'rejected':'active')}>{num(myLate)} عقب‌افتاده · {num(mine.length-myLate)} امروز</span></div>{mine.slice(0,5).map(r=><button className="dashboard-action" key={r.id} onClick={()=>onOpen(r.id)}><span className={'action-icon '+(r.data.due<now?'warm':'')}><Clock3 size={19}/></span><span><b>{r.data.name}</b><small>{rows.find(p=>p.id===r.parent_id)?.data.name||'بدون مشتری'} · {date(r.data.due)}{r.data.activity_time?' · '+r.data.activity_time:''}</small></span><ArrowUpLeft size={16}/></button>)}{!mine.length&&<NoRows title="پیگیری سررسیدشده ندارید" description="فعالیت‌هایی که مسئول آن‌ها هستید در اینجا نمایش داده می‌شوند."/>}{mine.length>5&&<Button variant="ghost" onClick={()=>onNavigate('activities','mine')}>نمایش فعالیت‌های من</Button>}</section>
   <section className="analytics-grid"><article className="panel trend-panel"><div className="section-title"><div><h2><ChartNoAxesCombined size={20}/> روند فرصت‌های فروش</h2><p>مبلغ فرصت‌ها بر اساس تاریخ ثبت؛ وضعیت موفق فعلی؛ تومان</p></div><span className="chart-legend"><i/>کل فرصت‌ها <i className="legend-won"/>موفق</span></div>
    {deals.length?<ChartContainer config={{value:{label:'کل فرصت‌ها',color:'#2b9b80'},won:{label:'فرصت موفق',color:'#bc8c34'}}} className="dashboard-chart"><AreaChart data={trend} accessibilityLayer margin={{top:10,left:18,right:5,bottom:5}}><defs><linearGradient id="revenueFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2b9b80" stopOpacity={0.3}/><stop offset="100%" stopColor="#2b9b80" stopOpacity={0.02}/></linearGradient></defs><CartesianGrid vertical={false} strokeDasharray="4 5"/><XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={12}/><YAxis tickFormatter={v=>short(Number(v))} tickLine={false} axisLine={false} width={80}/><Tooltip formatter={(v,name)=>[money(Number(v)),name==='value'?'کل فرصت‌ها':'فرصت‌های موفق']} contentStyle={{fontFamily:'inherit',borderRadius:12,direction:'rtl',borderColor:'#dbe7e1'}}/><Area type="monotone" dataKey="value" stroke="#2b9b80" fill="url(#revenueFill)" strokeWidth={3}/><Area type="monotone" dataKey="won" stroke="#bc8c34" fill="transparent" strokeWidth={2} strokeDasharray="5 3"/></AreaChart></ChartContainer>:<NoRows title="روند فروش از اینجا شکل می‌گیرد" description="با ثبت فرصت فروش، نمودار این بازه نمایش داده می‌شود."/>}
   </article><article className="panel conversion-panel"><div className="section-title"><h2>نتیجهٔ مذاکرات</h2><CheckCheck size={20}/></div><div className="conversion-rate">{num(winRate)}<span>٪</span></div><p>نرخ موفقیت در فرصت‌های بسته‌شده</p><Progress value={winRate} className="conversion-progress"/><div className="conversion-breakdown"><span><b>{num(won.length)}</b>موفق</span><span><b>{num(closed.length-won.length)}</b>ناموفق</span><span><b>{num(open.length)}</b>در جریان</span></div><Button variant="outline" onClick={()=>onNavigate('deals')}>مدیریت فرصت‌ها <ArrowUpLeft size={16}/></Button></article></section>

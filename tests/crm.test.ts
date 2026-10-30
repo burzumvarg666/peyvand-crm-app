@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { dataSchema, summary, exportCsv, csvCell } from '../lib/crm';
 import { buildWorkbook } from '../lib/exports';
 import { demoState } from '../lib/demo';
+import {personalFollowups} from '../lib/personal-followups';
 test('pipeline excludes closed deals, revenue is won only, win rate uses closed deals', () => { const data = demoState(); const s = summary(data.records); assert.equal(s.pipeline, 760000000); assert.equal(s.revenue, 260000000); assert.equal(s.rate, 50); assert.equal(s.openTasks, 3); assert.equal(s.customers, 4); });
 test('empty organization produces zero finite totals', () => { assert.deepEqual(summary([]), { customers: 0, pipeline: 0, revenue: 0, rate: 0, openTasks: 0 }); });
 test('CSV neutralizes formula injection and preserves quotes and line breaks', () => { for (const s of ['=SUM(A1:A2)', ' +cmd', '\t@evil', '-2+3'])
@@ -110,4 +111,11 @@ test('custom product type survives parsing and appears in product Excel export',
  assert.equal(saved.product_type_custom,'تینر');
  const sheet=buildWorkbook([row]).worksheets[0];
  assert.equal(sheet.getRow(2).getCell(4).value,'تینر');
+});
+
+test('personal followups include only assigned open tasks due today or earlier',()=>{
+ const base=demoState().records[0],user='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222';
+ const make=(id:string,assignee:string,due:string,status='open',kind:'tasks'|'activities'='activities',time='')=>({...base,id,kind,data:{...base.data,assignee,due,status,activity_time:time}});
+ const rows=[make('today',user,'2026-10-30','open','activities','14:00'),make('late',user,'2026-10-29'),make('future',user,'2026-10-31'),make('other',other,'2026-10-29'),make('done',user,'2026-10-29','done'),make('unassigned','','2026-10-29'),make('undated',user,'')];
+ assert.deepEqual(personalFollowups(rows,user,'2026-10-30').map(r=>r.id),['late','today']);assert.deepEqual(personalFollowups(rows,'','2026-10-30'),[]);
 });
