@@ -83,6 +83,7 @@ export async function POST(req: NextRequest) {
         if (m.role === 'viewer') throw new ApiError('دسترسی شما فقط مشاهده است.', 403);
 
         if (input.action === 'import') {
+            if (m.role !== 'admin') throw new ApiError('درون‌ریزی پشتیبان فقط برای مدیر مجاز است.', 403);
             const parsed = importEnvelope.safeParse(input.backup);
             if (!parsed.success) throw new ApiError('فایل پشتیبان معتبر نیست یا نسخهٔ آن پشتیبانی نمی‌شود.');
             const result = await rest('rpc/crm_import_with_samples', token, {

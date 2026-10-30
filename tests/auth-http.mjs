@@ -26,7 +26,7 @@ before(async()=>{
   if(['/auth/v1/resend','/auth/v1/recover','/auth/v1/logout'].includes(u.pathname))return send({});
   if(u.pathname==='/auth/v1/otp')return body.email==='blocked@example.com'?send({code:'email_address_not_authorized'},403):send({});
   if(u.pathname==='/rest/v1/rpc/crm_access_status')return send({allowed:true,platformAdmin:false});
-  if(u.pathname==='/rest/v1/crm_members')return send(u.searchParams.has('email')?[]:[{org_id:org,role:auth==='Bearer viewer-access'?'viewer':'admin'}]);
+  if(u.pathname==='/rest/v1/crm_members')return send(u.searchParams.has('email')?[]:[{org_id:org,role:auth==='Bearer viewer-access'?'viewer':auth==='Bearer sales-access'?'sales':'admin'}]);
   if(u.pathname==='/rest/v1/crm_invites'){
    if(req.method==='POST'){invites.set(body.email,body);return send(null,201);}
    const email=u.searchParams.get('email')?.replace(/^eq\./,'');return send(email&&invites.has(email)?[{id:'invite-id',...invites.get(email)}]:[]);
@@ -89,3 +89,9 @@ test('admin invitation sends a one-time link, retries keep one invite and failur
  r=await c.call('/api/crm',{...input,email:'blocked@example.com'});assert.equal(r.data.delivery,'failed');assert.ok(invites.has('blocked@example.com'));assert.ok(r.data.warning.includes('SMTP'));assert.ok(r.data.join_url.includes('auth=signup'));
  const before=calls.filter(c=>c.path==='/auth/v1/otp').length;r=await client({peyvand_access:'viewer-access'}).call('/api/crm',input);assert.equal(r.status,403);assert.equal(calls.filter(c=>c.path==='/auth/v1/otp').length,before);
 });
+
+ test('backup import is restricted to workspace admins',async()=>{
+  const before=calls.length;
+  for(const access of ['sales-access','viewer-access']){const r=await client({peyvand_access:access}).call('/api/crm',{action:'import',backup:{format:'peyvand-online',schemaVersion:1,records:[]}});assert.equal(r.status,403);}
+  assert.equal(calls.slice(before).filter(c=>c.path==='/rest/v1/rpc/crm_import_with_samples').length,0);
+ });
