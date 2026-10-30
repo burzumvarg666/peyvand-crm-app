@@ -7,7 +7,7 @@ import {blank,activityTypeLabels,type Data,type Row} from '@/lib/crm';
 import {date,money,num} from './shared';
 
 type ActivityType=Data['activity_type'];
-export function DanaAccountProfile({row,rows,canEdit,busy,onOpen,onEdit,onDelete,onSave,onNewRelated}:{row:Row;rows:Row[];canEdit:boolean;busy:boolean;onOpen:(id:string)=>void;onEdit:()=>void;onDelete:(r:Row)=>void;onSave:(kind:Row['kind'],data:Data,parent:string|null,record?:Row)=>Promise<boolean>;onNewRelated:(kind:'contacts'|'deals'|'activities',parent:string,preset?:Partial<Data>)=>void}){
+export function DanaAccountProfile({row,rows,canEdit,canDelete,busy,onOpen,onEdit,onDelete,onSave,onNewRelated}:{row:Row;rows:Row[];canEdit:boolean;canDelete:boolean;busy:boolean;onOpen:(id:string)=>void;onEdit:()=>void;onDelete:(r:Row)=>void;onSave:(kind:Row['kind'],data:Data,parent:string|null,record?:Row)=>Promise<boolean>;onNewRelated:(kind:'contacts'|'deals'|'activities',parent:string,preset?:Partial<Data>)=>void}){
  const [note,setNote]=useState('');
  const contacts=rows.filter(r=>r.kind==='contacts'&&r.parent_id===row.id);
  const contactIds=new Set(contacts.map(r=>r.id));
@@ -25,7 +25,7 @@ export function DanaAccountProfile({row,rows,canEdit,busy,onOpen,onEdit,onDelete
  return <div className="dana-account-layout">
   <aside className="dana-account-nav">{side.map(([id,label])=><button key={id} onClick={()=>document.getElementById('account-'+id)?.scrollIntoView({behavior:'smooth',block:'start'})}><span>{label}</span>{id==='contacts'?<b>{num(contacts.length)}</b>:id==='deals'?<b>{num(deals.length)}</b>:id==='open'?<b>{num(openActs.length)}</b>:id==='closed'?<b>{num(closedActs.length)}</b>:null}</button>)}</aside>
   <div className="dana-account-content">
-   <div className="dana-account-hero"><span className="dana-account-logo"><Building2 size={26}/></span><div><h2>{row.data.name}</h2><p>{row.data.industry||'حساب مشتری'}</p></div><div className="dana-account-actions">{canEdit&&<><Button variant="outline" onClick={onEdit}>ویرایش</Button><Button variant="ghost" className="danger" onClick={()=>onDelete(row)}>حذف</Button></>}</div></div>
+   <div className="dana-account-hero"><span className="dana-account-logo"><Building2 size={26}/></span><div><h2>{row.data.name}</h2><p>{row.data.industry||'حساب مشتری'}</p></div><div className="dana-account-actions">{canEdit&&<Button variant="outline" onClick={onEdit}>ویرایش</Button>}{canDelete&&<Button variant="ghost" className="danger" onClick={()=>onDelete(row)}>حذف</Button>}</div></div>
    <Section id="info" title="مشخصات حساب"><div className="dana-info-grid">
     <div><span>عنوان</span><b>{row.data.name}</b></div><div><span>تلفن</span><b dir="ltr">{row.data.phone||'—'}</b></div>
     <div><span>وب‌سایت</span><b dir="ltr">{row.data.website||'—'}</b></div><div><span>صنعت / حوزه فعالیت</span><b>{row.data.industry||'—'}</b></div>

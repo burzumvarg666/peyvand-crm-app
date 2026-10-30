@@ -173,6 +173,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (input.action === 'delete') {
+            if (m.role !== 'admin') throw new ApiError('فقط مدیر می‌تواند رکوردها را حذف کند.', 403);
             const p = z.object({ id: uuid, version: z.number().int().positive() }).safeParse(input);
             if (!p.success) throw new ApiError('شناسه معتبر نیست.');
             const current = await rest(`crm_records?id=eq.${p.data.id}&org_id=eq.${m.org_id}&select=id,kind,data,version&limit=1`, token);
