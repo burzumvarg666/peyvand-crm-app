@@ -62,6 +62,7 @@ export type Member = {
     role: 'admin' | 'sales' | 'viewer';
     active?: boolean;
     can_delete?: boolean;
+    customer_scope?: 'all' | 'assigned';
 };
 export type Audit = {
     id: string;
@@ -76,6 +77,7 @@ export type State = {
     desktop?: boolean;
     platformAdmin?: boolean;
     canDelete?: boolean;
+    customerScope?: 'all' | 'assigned';
     notifications?: { key: string; label: string }[];
     org: {
         id: string;

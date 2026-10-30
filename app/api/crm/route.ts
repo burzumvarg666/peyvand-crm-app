@@ -33,7 +33,7 @@ const recoverableSnapshot = z.object({
     format:z.literal('peyvand-workspace-snapshot'),schemaVersion:z.literal(2),
     workspace:z.object({id:uuid,name:z.string(),created_at:z.string().datetime({offset:true})}),
     records:z.array(importRecord).max(100000),
-    samples:z.array(z.object({id:uuid,org_id:uuid,version:z.number().int().positive(),data:sampleSchema})).max(100000),
+    samples:z.array(z.object({id:uuid,org_id:uuid,version:z.number().int().positive(),data:sampleSchema,created_by:uuid.nullable().optional()})).max(100000),
     returns:z.array(z.record(z.unknown())).max(100000),
     members:z.array(z.unknown()).max(100000),invites:z.array(z.unknown()).max(100000),audit:z.array(z.object({id:uuid,org_id:uuid,record_id:uuid,actor_id:uuid.nullable(),action:z.enum(['INSERT','UPDATE','DELETE']),label:z.string().min(1).max(160),created_at:z.string().datetime({offset:true})})).max(200000),membershipAudit:z.array(z.unknown()).max(200000),
     exportedAt:z.string().datetime({offset:true}),limitations:z.array(z.string())
@@ -46,7 +46,7 @@ const inventoryInput = z.object({
     reference: z.string().max(160).default(''),
     description: z.string().max(10000).default('')
 });
-async function membership(token: string, userId: string) { const m = await rest(`crm_members?user_id=eq.${userId}&select=org_id,role,can_delete&limit=1`, token); return m[0]; }
+async function membership(token: string, userId: string) { const m = await rest(`crm_members?user_id=eq.${userId}&select=org_id,role,can_delete,customer_scope&limit=1`, token); return m[0]; }
 async function all(table: string, token: string) { const result: unknown[] = []; for (let offset = 0; offset < 100000; offset += 500) {
     const page = await rest(table + `&limit=500&offset=${offset}`, token);
     result.push(...page);
@@ -62,7 +62,7 @@ export async function GET() { try {
     const [org, records, members, invites, audit] = await Promise.all([
         rest(`crm_orgs?id=eq.${m.org_id}&select=id,name`, token),
         all(`crm_records?org_id=eq.${m.org_id}&select=*&order=created_at.desc,id`, token),
-        all(`crm_members?org_id=eq.${m.org_id}&select=user_id,email,role,active,can_delete&order=user_id`, token),
+        all(`crm_members?org_id=eq.${m.org_id}&select=user_id,email,role,active,can_delete,customer_scope&order=user_id`, token),
         m.role === 'admin' ? all(`crm_invites?org_id=eq.${m.org_id}&select=id,email,role&order=id`, token) : [],
         rest(`crm_audit?org_id=eq.${m.org_id}&select=id,record_id,action,label,created_at,actor_id,restored_from_backup&order=created_at.desc&limit=100`, token)
     ]);
@@ -72,7 +72,7 @@ export async function GET() { try {
             if(added)records.push(added);
         }
     }
-    return NextResponse.json({ platformAdmin:access.platformAdmin, org: org[0], role: m.role, canDelete: m.role==='admin'||(m.role==='sales'&&m.can_delete===true), user: { id: user.id, email: user.email }, records, members, invites, audit });
+    return NextResponse.json({ platformAdmin:access.platformAdmin, org: org[0], role: m.role, customerScope:m.customer_scope, canDelete: m.role==='admin'||(m.role==='sales'&&m.can_delete===true), user: { id: user.id, email: user.email }, records, members, invites, audit });
 } catch (e) { return fail(e); } }
 export async function POST(req: NextRequest) {
     try {
@@ -90,6 +90,14 @@ export async function POST(req: NextRequest) {
         const m = await membership(token, user.id);
         if (!m) throw new ApiError('فضای کاری یافت نشد.', 404);
         if (m.role === 'viewer') throw new ApiError('دسترسی شما فقط مشاهده است.', 403);
+
+        if (input.action === 'memberCustomerScope') {
+            if(m.role!=='admin')throw new ApiError('فقط مدیر می‌تواند دسترسی اعضا را تغییر دهد.',403);
+            const p=z.object({user_id:uuid,scope:z.enum(['all','assigned'])}).safeParse(input);
+            if(!p.success)throw new ApiError('اطلاعات دسترسی معتبر نیست.');
+            await rest('rpc/crm_set_customer_scope',token,{method:'POST',body:JSON.stringify({target_user:p.data.user_id,new_scope:p.data.scope})});
+            return NextResponse.json({ok:true});
+        }
 
         if (input.action === 'memberDeletePermission') {
             if (m.role !== 'admin') throw new ApiError('فقط مدیر می‌تواند دسترسی اعضا را تغییر دهد.',403);
