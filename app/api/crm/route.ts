@@ -14,14 +14,14 @@ const importRecord = z.object({
     kind: z.enum(kinds),
     parent_id: uuid.nullable(),
     data: dataSchema,
-    created_at: z.string().datetime(),
-    updated_at: z.string().datetime(),
+    created_at: z.string().datetime({offset:true}),
+    updated_at: z.string().datetime({offset:true}),
     version: z.number().int().positive()
 }).strict();
 const importEnvelope = z.object({
     format: z.enum(['peyvand-desktop', 'peyvand-online']),
     schemaVersion: z.literal(1),
-    exportedAt: z.string().datetime().optional(),
+    exportedAt: z.string().datetime({offset:true}).optional(),
     workspace: z.string().trim().min(1).max(100).nullable().optional(),
     records: z.array(importRecord).max(100000),
     samples: z.array(z.object({id:z.string().uuid(),version:z.number().int().positive(),data:sampleSchema})).max(100000).optional(),
@@ -29,6 +29,15 @@ const importEnvelope = z.object({
     audit: z.array(z.unknown()).max(200000).optional(),
     automationKeys: z.array(z.string().max(200)).max(200000).optional()
 }).strict();
+const recoverableSnapshot = z.object({
+    format:z.literal('peyvand-workspace-snapshot'),schemaVersion:z.literal(2),
+    workspace:z.object({id:uuid,name:z.string(),created_at:z.string().datetime({offset:true})}),
+    records:z.array(importRecord).max(100000),
+    samples:z.array(z.object({id:uuid,org_id:uuid,version:z.number().int().positive(),data:sampleSchema})).max(100000),
+    returns:z.array(z.record(z.unknown())).max(100000),
+    members:z.array(z.unknown()).max(100000),invites:z.array(z.unknown()).max(100000),audit:z.array(z.unknown()).max(200000),membershipAudit:z.array(z.unknown()).max(200000),
+    exportedAt:z.string().datetime({offset:true}),limitations:z.array(z.string())
+});
 const inventoryInput = z.object({
     product_id: uuid,
     type: z.enum(['in','out','adjustment']),
@@ -96,6 +105,17 @@ export async function POST(req: NextRequest) {
             if (!p.success) throw new ApiError('اطلاعات عضو معتبر نیست.');
             await rest('rpc/crm_set_member_access',token,{method:'POST',body:JSON.stringify({target_user:p.data.user_id,new_role:p.data.role,new_active:p.data.active})});
             return NextResponse.json({ok:true});
+        }
+
+        if (input.action === 'recoverMissing') {
+            if (m.role !== 'admin') throw new ApiError('بازیابی فقط برای مدیر مجاز است.',403);
+            const parsed=recoverableSnapshot.safeParse(input.backup);
+            if (!parsed.success) throw new ApiError('ساختار نسخهٔ اطلاعات معتبر نیست.');
+            const archive=parsed.data;
+            if (archive.workspace.id!==m.org_id || archive.records.some(r=>r.org_id!==m.org_id) || archive.samples.some(r=>r.org_id!==m.org_id) || archive.returns.some(r=>r.org_id!==m.org_id)) throw new ApiError('این نسخه متعلق به فضای کاری دیگری است.',403);
+            const payload={format:'peyvand-online',schemaVersion:1,records:archive.records,returns:archive.returns,samples:archive.samples.map(({id,version,data})=>({id,version,data}))};
+            const result=await rest('rpc/crm_import_with_samples',token,{method:'POST',body:JSON.stringify({payload})});
+            return NextResponse.json({ok:true,imported:Number(result?.imported||0),returnsImported:Number(result?.returns_imported||0),samplesImported:Number(result?.samples_imported||0)});
         }
 
         if (input.action === 'import') {

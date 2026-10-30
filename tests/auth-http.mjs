@@ -27,6 +27,7 @@ before(async()=>{
   if(u.pathname==='/auth/v1/otp')return body.email==='blocked@example.com'?send({code:'email_address_not_authorized'},403):send({});
   if(['/rest/v1/rpc/crm_set_member_access','/rest/v1/rpc/crm_set_member_delete_permission'].includes(u.pathname))return send(null);
   if(u.pathname==='/rest/v1/crm_records'){if(req.method==='DELETE')return send([{id:'33333333-3333-4333-8333-333333333333'}]);if(u.searchParams.has('parent_id'))return send([]);return send([{id:'33333333-3333-4333-8333-333333333333',kind:'companies',data:{},version:1}]);}
+  if(u.pathname==='/rest/v1/rpc/crm_import_with_samples')return send({imported:1});
   if(u.pathname==='/rest/v1/rpc/crm_workspace_snapshot')return auth==='Bearer valid-access'?send({format:'peyvand-workspace-snapshot',schemaVersion:2,workspace:{id:org},records:[],members:[],audit:[]}):send({code:'42501'},403);
   if(u.pathname==='/rest/v1/rpc/crm_access_status')return send({allowed:true,platformAdmin:false});
   if(u.pathname==='/rest/v1/crm_members')return send(u.searchParams.has('email')?[]:[{org_id:org,role:auth==='Bearer viewer-access'?'viewer':(auth==='Bearer sales-access'||auth==='Bearer authorized-sales-access')?'sales':'admin',can_delete:auth==='Bearer authorized-sales-access'}]);
@@ -123,4 +124,20 @@ test('delete permission can only be managed by admin and lets a sales member del
 test('workspace archive download is available only to administrators',async()=>{
  for(const access of ['sales-access','viewer-access'])assert.equal((await client({peyvand_access:access}).call('/api/backup')).status,403);
  const result=await client({peyvand_access:'valid-access'}).call('/api/backup');assert.equal(result.status,200);assert.equal(result.data.format,'peyvand-workspace-snapshot');
+});
+
+test('legacy backup accepts database timestamps with timezone offsets',async()=>{
+ const timestamp='2026-10-30T16:08:15.011427+00:00';
+ const input={action:'import',backup:{format:'peyvand-online',schemaVersion:1,exportedAt:timestamp,records:[{id:'33333333-3333-4333-8333-333333333333',kind:'companies',parent_id:null,data:{name:'Test',status:'active'},created_at:timestamp,updated_at:timestamp,version:1}]}};
+ const result=await client({peyvand_access:'valid-access'}).call('/api/crm',input);assert.equal(result.status,200);assert.equal(result.data.imported,1);
+});
+test('workspace snapshot recovery only imports missing items for the same workspace and an admin',async()=>{
+ const timestamp='2026-10-30T16:08:15.011427+00:00';
+ const backup={format:'peyvand-workspace-snapshot',schemaVersion:2,exportedAt:timestamp,workspace:{id:org,name:'Test',created_at:timestamp},records:[{id:'33333333-3333-4333-8333-333333333333',org_id:org,kind:'companies',parent_id:null,data:{name:'Test',status:'active'},created_at:timestamp,updated_at:timestamp,version:1}],samples:[],returns:[],members:[],invites:[],audit:[],membershipAudit:[],limitations:[]};
+ const request={action:'recoverMissing',backup};const rpc=()=>calls.filter(c=>c.path==='/rest/v1/rpc/crm_import_with_samples').length;
+ const before=rpc();for(const access of ['sales-access','viewer-access'])assert.equal((await client({peyvand_access:access}).call('/api/crm',request)).status,403);assert.equal(rpc(),before);
+ const admin=client({peyvand_access:'valid-access'});const foreign={...backup,workspace:{...backup.workspace,id:'44444444-4444-4444-8444-444444444444'}};
+ assert.equal((await admin.call('/api/crm',{action:'recoverMissing',backup:foreign})).status,403);assert.equal(rpc(),before);
+ assert.equal((await admin.call('/api/crm',{action:'recoverMissing',backup:{...backup,samples:'bad'}})).status,400);assert.equal(rpc(),before);
+ const result=await admin.call('/api/crm',request);assert.equal(result.status,200);assert.equal(result.data.imported,1);assert.equal(calls.at(-1).body.payload.format,'peyvand-online');
 });
