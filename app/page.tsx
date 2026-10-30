@@ -135,7 +135,7 @@ export default function App(){
  async function prepareRecovery(event:ChangeEvent<HTMLInputElement>){
   const file=event.target.files?.[0];event.target.value='';if(!file)return;
   await run(async()=>{
-   if(file.size>18_000_000)throw new Error('حجم نسخه اطلاعات از حد مجاز بیشتر است.');
+   if(file.size>4_000_000)throw new Error('حجم فایل بیشتر از سقف ۴ مگابایت است؛ برای بازیابی فایل بزرگ‌تر با پشتیبانی تماس بگیرید.');
    let backup:unknown;try{backup=JSON.parse(await file.text());}catch{throw new Error('فایل JSON معتبر نیست.');}
    if(!backup||typeof backup!=='object')throw new Error('ساختار نسخه اطلاعات معتبر نیست.');
    const b=backup as {format?:unknown;schemaVersion?:unknown;workspace?:{id?:unknown};records?:unknown;returns?:unknown;samples?:unknown};
@@ -154,7 +154,7 @@ export default function App(){
   if(!file)return;
   await run(async()=>{
    if(demo)throw new Error('درون‌ریزی در نسخهٔ نمایشی انجام نمی‌شود.');
-   if(file.size>20*1024*1024)throw new Error('حجم فایل پشتیبان نباید بیشتر از ۲۰ مگابایت باشد.');
+   if(file.size>4_000_000)throw new Error('حجم فایل بیشتر از سقف ۴ مگابایت است؛ برای ورود فایل بزرگ‌تر با پشتیبانی تماس بگیرید.');
    let backup:unknown;
    try{backup=JSON.parse(await file.text());}catch{throw new Error('فایل JSON معتبر نیست.');}
    if(!backup||typeof backup!=='object'||!Array.isArray((backup as {records?:unknown}).records))throw new Error('ساختار فایل پشتیبان معتبر نیست.');

@@ -28,7 +28,7 @@ before(async()=>{
   if(['/rest/v1/rpc/crm_set_member_access','/rest/v1/rpc/crm_set_member_delete_permission'].includes(u.pathname))return send(null);
   if(u.pathname==='/rest/v1/crm_records'){if(req.method==='DELETE')return send([{id:'33333333-3333-4333-8333-333333333333'}]);if(u.searchParams.has('parent_id'))return send([]);return send([{id:'33333333-3333-4333-8333-333333333333',kind:'companies',data:{},version:1}]);}
   if(u.pathname==='/rest/v1/rpc/crm_import_with_samples')return send({imported:1});
-  if(u.pathname==='/rest/v1/rpc/crm_workspace_snapshot')return auth==='Bearer valid-access'?send({format:'peyvand-workspace-snapshot',schemaVersion:2,workspace:{id:org},records:[],members:[],audit:[]}):send({code:'42501'},403);
+  if(u.pathname==='/rest/v1/rpc/crm_workspace_snapshot')return auth==='Bearer large-snapshot-access'?send({data:'x'.repeat(4_000_001)}):auth==='Bearer valid-access'?send({format:'peyvand-workspace-snapshot',schemaVersion:2,workspace:{id:org},records:[],members:[],audit:[]}):send({code:'42501'},403);
   if(u.pathname==='/rest/v1/rpc/crm_access_status')return send({allowed:true,platformAdmin:false});
   if(u.pathname==='/rest/v1/crm_members')return send(u.searchParams.has('email')?[]:[{org_id:org,role:auth==='Bearer viewer-access'?'viewer':(auth==='Bearer sales-access'||auth==='Bearer authorized-sales-access')?'sales':'admin',can_delete:auth==='Bearer authorized-sales-access'}]);
   if(u.pathname==='/rest/v1/crm_invites'){
@@ -140,4 +140,8 @@ test('workspace snapshot recovery only imports missing items for the same worksp
  assert.equal((await admin.call('/api/crm',{action:'recoverMissing',backup:foreign})).status,403);assert.equal(rpc(),before);
  assert.equal((await admin.call('/api/crm',{action:'recoverMissing',backup:{...backup,samples:'bad'}})).status,400);assert.equal(rpc(),before);
  const result=await admin.call('/api/crm',request);assert.equal(result.status,200);assert.equal(result.data.imported,1);assert.equal(calls.at(-1).body.payload.format,'peyvand-online');
+});
+
+test('oversized workspace archive is rejected with a clear response',async()=>{
+ const result=await client({peyvand_access:'large-snapshot-access'}).call('/api/backup');assert.equal(result.status,413);assert.match(result.data.error,/حجم/);
 });
