@@ -35,7 +35,7 @@ const recoverableSnapshot = z.object({
     records:z.array(importRecord).max(100000),
     samples:z.array(z.object({id:uuid,org_id:uuid,version:z.number().int().positive(),data:sampleSchema})).max(100000),
     returns:z.array(z.record(z.unknown())).max(100000),
-    members:z.array(z.unknown()).max(100000),invites:z.array(z.unknown()).max(100000),audit:z.array(z.unknown()).max(200000),membershipAudit:z.array(z.unknown()).max(200000),
+    members:z.array(z.unknown()).max(100000),invites:z.array(z.unknown()).max(100000),audit:z.array(z.object({id:uuid,org_id:uuid,record_id:uuid,actor_id:uuid.nullable(),action:z.enum(['INSERT','UPDATE','DELETE']),label:z.string().min(1).max(160),created_at:z.string().datetime({offset:true})})).max(200000),membershipAudit:z.array(z.unknown()).max(200000),
     exportedAt:z.string().datetime({offset:true}),limitations:z.array(z.string())
 });
 const inventoryInput = z.object({
@@ -64,7 +64,7 @@ export async function GET() { try {
         all(`crm_records?org_id=eq.${m.org_id}&select=*&order=created_at.desc,id`, token),
         all(`crm_members?org_id=eq.${m.org_id}&select=user_id,email,role,active,can_delete&order=user_id`, token),
         m.role === 'admin' ? all(`crm_invites?org_id=eq.${m.org_id}&select=id,email,role&order=id`, token) : [],
-        rest(`crm_audit?org_id=eq.${m.org_id}&select=id,record_id,action,label,created_at,actor_id&order=created_at.desc&limit=100`, token)
+        rest(`crm_audit?org_id=eq.${m.org_id}&select=id,record_id,action,label,created_at,actor_id,restored_from_backup&order=created_at.desc&limit=100`, token)
     ]);
     if(m.role!=='viewer'){
         for(const c of automationCandidates(records as Row[],localDay())){
@@ -113,9 +113,9 @@ export async function POST(req: NextRequest) {
             if (!parsed.success) throw new ApiError('ساختار نسخهٔ اطلاعات معتبر نیست.');
             const archive=parsed.data;
             if (archive.workspace.id!==m.org_id || archive.records.some(r=>r.org_id!==m.org_id) || archive.samples.some(r=>r.org_id!==m.org_id) || archive.returns.some(r=>r.org_id!==m.org_id)) throw new ApiError('این نسخه متعلق به فضای کاری دیگری است.',403);
-            const payload={format:'peyvand-online',schemaVersion:1,records:archive.records,returns:archive.returns,samples:archive.samples.map(({id,version,data})=>({id,version,data}))};
-            const result=await rest('rpc/crm_import_with_samples',token,{method:'POST',body:JSON.stringify({payload})});
-            return NextResponse.json({ok:true,imported:Number(result?.imported||0),returnsImported:Number(result?.returns_imported||0),samplesImported:Number(result?.samples_imported||0)});
+            if (archive.audit.some(a=>a.org_id!==m.org_id)) throw new ApiError('این نسخه متعلق به فضای کاری دیگری است.',403);
+            const result=await rest('rpc/crm_recover_snapshot',token,{method:'POST',body:JSON.stringify({payload:archive})});
+            return NextResponse.json({ok:true,imported:Number(result?.imported||0),returnsImported:Number(result?.returns_imported||0),samplesImported:Number(result?.samples_imported||0),auditImported:Number(result?.audit_imported||0)});
         }
 
         if (input.action === 'import') {

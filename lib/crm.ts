@@ -69,7 +69,8 @@ export type Audit = {
     action: string;
     label: string;
     created_at: string;
-    actor_id: string;
+    actor_id: string | null;
+    restored_from_backup?: boolean;
 };
 export type State = {
     desktop?: boolean;
