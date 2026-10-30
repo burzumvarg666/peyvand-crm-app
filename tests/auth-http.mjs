@@ -29,6 +29,7 @@ before(async()=>{
   if(u.pathname==='/rest/v1/crm_records'){if(req.method==='DELETE')return send([{id:'33333333-3333-4333-8333-333333333333'}]);if(u.searchParams.has('parent_id'))return send([]);return send([{id:'33333333-3333-4333-8333-333333333333',kind:'companies',data:{},version:1}]);}
   if(u.pathname==='/rest/v1/rpc/crm_import_with_samples')return send({imported:1});
   if(u.pathname==='/rest/v1/rpc/crm_recover_snapshot')return send({imported:1,audit_imported:2});
+  if(u.pathname==='/rest/v1/rpc/crm_management_activity')return auth==='Bearer valid-access'?send([]):send({code:'42501'},403);
   if(['/rest/v1/rpc/crm_trash_list','/rest/v1/rpc/crm_trash_restore'].includes(u.pathname))return auth==='Bearer valid-access'?send(u.pathname.endsWith('_list')?[]:null):send({code:'42501'},403);
   if(u.pathname==='/rest/v1/rpc/crm_workspace_snapshot')return auth==='Bearer large-snapshot-access'?send({data:'x'.repeat(4_000_001)}):auth==='Bearer valid-access'?send({format:'peyvand-workspace-snapshot',schemaVersion:2,workspace:{id:org},records:[],members:[],audit:[]}):send({code:'42501'},403);
   if(u.pathname==='/rest/v1/rpc/crm_access_status')return send({allowed:true,platformAdmin:false});
@@ -153,4 +154,9 @@ test('recycle bin and restore are restricted to admins',async()=>{
  const id='33333333-3333-4333-8333-333333333333';
  for(const access of ['sales-access','viewer-access']){const user=client({peyvand_access:access});assert.equal((await user.call('/api/trash')).status,403);assert.equal((await user.call('/api/trash',{id})).status,403);}
  const admin=client({peyvand_access:'valid-access'});assert.equal((await admin.call('/api/trash')).status,200);assert.equal((await admin.call('/api/trash',{id})).status,200);
+});
+
+test('management activity is private to admins and validates requested limit',async()=>{
+ for(const access of ['sales-access','viewer-access'])assert.equal((await client({peyvand_access:access}).call('/api/activity-log')).status,403);
+ const admin=client({peyvand_access:'valid-access'});assert.equal((await admin.call('/api/activity-log?limit=1001')).status,400);assert.equal((await admin.call('/api/activity-log?limit=10')).status,200);assert.equal(calls.at(-1).body.max_rows,10);
 });

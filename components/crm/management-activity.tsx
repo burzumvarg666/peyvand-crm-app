@@ -1,0 +1,13 @@
+'use client';
+import {useEffect,useState} from 'react';
+import {Button} from '@/components/ui/button';
+import {date} from './shared';
+type Event={id:string;category:'record'|'return'|'sample'|'member';action:'INSERT'|'UPDATE'|'DELETE';label:string;actor_name:string;target_name:string|null;created_at:string;restored_from_backup:boolean;detail:null|{old_role:string;new_role:string;old_active:boolean;new_active:boolean;old_can_delete:boolean|null;new_can_delete:boolean|null}};
+const categories={record:'رکورد',return:'برگشتی',sample:'نمونه',member:'دسترسی عضو'};
+const actions={INSERT:'ثبت',UPDATE:'ویرایش',DELETE:'حذف'};
+const roles:Record<string,string>={admin:'مدیر',sales:'کارشناس فروش',viewer:'مشاهده‌گر'};
+export function ManagementActivity(){
+ const [rows,setRows]=useState<Event[]>([]),[limit,setLimit]=useState(200),[revision,setRevision]=useState(0),[loading,setLoading]=useState(true),[error,setError]=useState('');
+ useEffect(()=>{let active=true;setLoading(true);fetch('/api/activity-log?limit='+limit,{cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error||'دریافت گزارش انجام نشد.');return d;}).then(d=>{if(active){setRows(d.rows);setError('');}}).catch(e=>{if(active)setError(e.message);}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[limit,revision]);
+ return <article className="panel"><div className="row wrap"><h2>گزارش تغییرات تیم</h2><Button variant="outline" disabled={loading} onClick={()=>setRevision(n=>n+1)}>تازه‌سازی</Button></div><p className="settings-copy">آخرین {limit.toLocaleString('fa-IR')} رویداد ثبت‌شده؛ فعالیت‌های برگشتی و نمونه از زمان فعال‌شدن این گزارش ثبت می‌شوند.</p>{error&&<p className="error" role="alert">{error}</p>}{!loading&&!rows.length&&!error&&<p className="muted">رویدادی وجود ندارد.</p>}{rows.map(e=><div className="member-row wrap" key={e.id}><span><b>{categories[e.category]} · {actions[e.action]}</b> · {e.label}{e.target_name?' · '+e.target_name:''}<small> توسط {e.actor_name} · {date(e.created_at)}، {new Intl.DateTimeFormat('fa-IR',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tehran'}).format(new Date(e.created_at))}{e.restored_from_backup?' · بازیابی‌شده از فایل':''}</small>{e.category==='member'&&e.detail&&<small>نقش: {roles[e.detail.old_role]} ← {roles[e.detail.new_role]} · دسترسی: {e.detail.new_active?'فعال':'قطع‌شده'}{e.detail.old_can_delete!==e.detail.new_can_delete&&e.detail.new_can_delete!==null?' · اجازه حذف: '+(e.detail.new_can_delete?'فعال':'غیرفعال'):''}</small>}</span></div>)}{loading&&<p className="muted">در حال دریافت…</p>}{rows.length>=limit&&limit<1000&&<Button variant="outline" disabled={loading} onClick={()=>setLimit(n=>Math.min(n+200,1000))}>نمایش موارد بیشتر</Button>}</article>;
+}
