@@ -30,7 +30,7 @@ export function ForecastEditor({rows,months,row,busy,onSave,onClose}:{rows:Row[]
    const forecast_months=mergeForecastMonths(row?.data.forecast_months||[],draft);
    if(!forecast_months.some(m=>m.quantity!==null||m.amount!==null)){setError('مقدار یا مبلغ حداقل یک ماه را وارد کنید.');return;}
    const c=rows.find(r=>r.id===customer),p=rows.find(r=>r.id===product);
-   if(await onSave({...(row?.data||blank()),name:`${c?.data.name} · ${p?.data.name}`.slice(0,160),forecast_product_id:product,forecast_months,description:note,sku:p?.data.sku||'',category:p?.data.category||'',status:'active'},customer,row))onClose();
+   if(await onSave({...(row?.data||blank()),name:`${c?.data.name} · ${p?.data.name}`.slice(0,160),forecast_product_id:product,forecast_months,currency:'ریال',unit:'kg',description:note,sku:p?.data.sku||'',category:p?.data.category||'',status:'active'},customer,row))onClose();
   }catch{setError('عددها باید معتبر، مثبت یا صفر و داخل محدوده مجاز باشند.');}
  }
  return <Dialog open onOpenChange={open=>{if(!open&&!busy)onClose();}}><DialogContent dir="rtl" className={styles.editor} onInteractOutside={e=>{if(busy)e.preventDefault();}} onEscapeKeyDown={e=>{if(busy)e.preventDefault();}}><DialogTitle>{row?'ویرایش پیش‌بینی':'پیش‌بینی جدید'} <bdi dir="ltr">N+5</bdi></DialogTitle><DialogDescription>مقدار به کیلوگرم و مبلغ به ریال؛ خانه خالی یعنی هنوز پیش‌بینی نشده است.</DialogDescription>

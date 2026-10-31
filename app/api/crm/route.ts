@@ -173,6 +173,7 @@ export async function POST(req: NextRequest) {
 
             }
             if(v.kind==='forecasts'){
+                v.data.currency='ریال';v.data.unit='kg';
                 const product=(await rest(`crm_records?id=eq.${v.data.forecast_product_id}&org_id=eq.${m.org_id}&kind=eq.products&select=id,data`,token))[0];
                 if(!product)throw new ApiError('محصول پیش‌بینی معتبر نیست.');
                 if((!previous||previous.data.forecast_product_id!==product.id)&&(product.data.status!=='active'||product.data.archived))throw new ApiError('برای پیش‌بینی جدید، یک محصول فعال انتخاب کنید.');

@@ -175,5 +175,5 @@ test('forecast HTTP validates months, customer and role before saving independen
  assert.equal((await client({peyvand_access:'viewer-access'}).call('/api/crm',base)).status,403);
  const sales=client({peyvand_access:'sales-access'});assert.equal((await sales.call('/api/crm',{...base,parent_id:null})).status,400);
  for(const cell of [{month:'2026-13',quantity:1,amount:0},{month:'2026-12',quantity:-1,amount:0},{month:'2026-12',quantity:1,amount:'10'}])assert.equal((await sales.call('/api/crm',{...base,data:{...base.data,forecast_months:[cell]}})).status,400);
- const result=await sales.call('/api/crm',base);assert.equal(result.status,200);const written=calls.findLast(c=>c.path==='/rest/v1/crm_records'&&c.method==='POST');assert.equal(written.body.kind,'forecasts');assert.equal(written.body.parent_id,base.parent_id);assert.deepEqual(written.body.data.forecast_months,base.data.forecast_months);
+ const result=await sales.call('/api/crm',base);assert.equal(result.status,200);const written=calls.findLast(c=>c.path==='/rest/v1/crm_records'&&c.method==='POST');assert.equal(written.body.kind,'forecasts');assert.equal(written.body.parent_id,base.parent_id);assert.equal(written.body.data.currency,'ریال');assert.equal(written.body.data.unit,'kg');assert.deepEqual(written.body.data.forecast_months,base.data.forecast_months);
 });
