@@ -146,3 +146,23 @@ test('forecast Excel uses selected absolute months, numeric kg/IRR cells, and le
  assert.equal(sheet.getRow(3).getCell(1).value,customer.data.name);assert.equal(sheet.getRow(3).getCell(3).value,'001234');assert.equal(sheet.getRow(3).getCell(5).value,0);assert.equal(sheet.getRow(3).getCell(6).value,1234567.89);assert.equal(sheet.getRow(3).getCell(7).value,1.2345);assert.equal(sheet.getRow(3).getCell(8).value,null);assert.equal(sheet.getRow(2).getCell(5).value,'N 2026-10 (kg)');assert.equal(sheet.getRow(2).getCell(16).value,'N+5 2027-03 (IRR)');
  assert.ok(!JSON.stringify(sheet.getRow(2).values).includes('Achievement'));assert.ok(!JSON.stringify(sheet.getRow(2).values).includes('Status'));
 });
+
+import {navigationArea,workspaceLinks,resolveNavigation} from '../lib/navigation';
+test('merged navigation keeps reports, stock and automation destinations in their parent workspace',()=>{
+ assert.equal(navigationArea('reports'),'dashboard');assert.equal(navigationArea('inventory'),'products');assert.equal(navigationArea('automations'),'settings');assert.equal(navigationArea('platform-admin'),'settings');assert.equal(navigationArea('team-settings'),'settings');assert.equal(navigationArea('people'),'companies');
+ const context={desktop:false,demo:false,role:'admin' as const,platformAdmin:false};
+ assert.deepEqual(workspaceLinks('products',context).map(p=>p.id),['products','inventory']);assert.deepEqual(workspaceLinks('reports',context).map(p=>p.id),['dashboard','reports']);assert.equal(resolveNavigation('people',context),'companies');assert.equal(resolveNavigation('inventory',context),'inventory');
+});
+test('settings navigation retains member and backup tools while respecting administrative capabilities',()=>{
+ const viewer={desktop:false,demo:false,role:'viewer' as const,platformAdmin:false},admin={...viewer,role:'admin' as const},owner={...admin,platformAdmin:true};
+ const pages=(context:typeof viewer|typeof admin|typeof owner)=>workspaceLinks('settings',context).map(p=>p.id);
+ for(const id of ['settings','team-settings','backup-settings','automations'])assert.ok(pages(viewer).includes(id));
+ for(const id of ['trash','activity-log','platform-admin'])assert.ok(!pages(viewer).includes(id));
+ assert.ok(pages(admin).includes('trash'));assert.ok(pages(admin).includes('activity-log'));assert.ok(!pages(admin).includes('platform-admin'));assert.ok(pages(owner).includes('platform-admin'));
+ assert.equal(resolveNavigation('trash',viewer),'settings');assert.equal(resolveNavigation('platform-admin',admin),'settings');
+});
+test('offline and demo navigation do not expose online account or private administrative panels',()=>{
+ for(const context of [{desktop:true,demo:false,role:'admin' as const,platformAdmin:true},{desktop:false,demo:true,role:'admin' as const,platformAdmin:true}]){
+  const pages=workspaceLinks('settings',context).map(p=>p.id);for(const id of ['settings','platform-admin','trash','activity-log'])assert.ok(!pages.includes(id));assert.ok(pages.includes('backup-settings'));assert.ok(pages.includes('automations'));assert.equal(resolveNavigation('settings',context),'backup-settings');
+ }
+});

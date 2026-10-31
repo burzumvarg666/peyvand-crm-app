@@ -87,3 +87,7 @@ button,input,select,textarea{font-size:.9rem}button:focus-visible{outline:3px so
 
 /* Grouped navigation */
 .crm-sidebar [data-slot=sidebar-content]{padding:0 13px 18px}.crm-sidebar .nav-label{margin:4px 12px 8px;color:#8a9e94}.crm-sidebar .nav-dashboard{background:#f1f7f3;font-weight:700;margin-bottom:12px}.nav-groups{display:grid;gap:5px}.nav-group{border-top:1px solid #edf2ef;padding:5px 0}.nav-group-toggle{width:100%;min-height:43px;display:flex;align-items:center;gap:10px;padding:8px 12px;border:0;border-radius:10px;background:transparent;color:#526e61;text-align:right;font-size:.86rem;font-weight:700}.nav-group-toggle:hover,.nav-group-active{background:#f0f7f3;color:#1e6a51}.nav-group-toggle>span{flex:1}.nav-chevron{transition:transform .18s;transform:rotate(90deg);color:#87a196}.nav-chevron.is-open{transform:rotate(0)}.nav-submenu{padding:5px 13px 4px 0;gap:2px}.crm-sidebar .nav-subitem{font-size:.82rem!important;height:38px!important;margin:0;padding:0 12px;color:#60786b}.crm-sidebar .nav-subitem[data-active=true]{background:#e1f2e9!important;color:#145e46!important}.profile b{display:block;max-width:145px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.profile small{color:#768a7e}.crm-sidebar .avatar{background:linear-gradient(140deg,#d8f0e0,#b5dcc5);color:#16583f;font-weight:700}
+
+/* A single settings workspace replaces scattered management pages. */
+.settings-single{grid-template-columns:minmax(0,1fr);max-width:1100px;width:100%}
+.nav-settings{margin-top:15px;padding-top:12px;border-top:1px solid #e2ebe5}
