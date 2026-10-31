@@ -49,6 +49,8 @@ export function buildWorkbook(items: Row[], allRows: Row[] = items) {
         for(const q of quotes)for(const [index,item] of q.data.items.entries())lines.push([q.data.quote_number,q.data.letter_number,parentName(q),item.name,item.product_code||'',item.unit||'عدد',item.package_count??'',item.package_amount??'',item.quantity,toRial(item.unit_price),toRial(quoteAmounts(q.data).lines[index])]);
         addSheet('محصولات پیش‌فاکتور',['شماره پیش‌فاکتور','شماره نامه','مشتری','محصول','کد محصول','واحد','تعداد بسته','مقدار هر بسته','مقدار کل','قیمت واحد (ریال)','مبلغ ردیف (ریال)'],lines);
     }
+    const forecasts=items.filter(r=>r.kind==='forecasts');
+    if(forecasts.length)addSheet('پیش‌بینی ماهانه',['مشتری','محصول','کد محصول','دسته‌بندی','ماه میلادی','مقدار (کیلوگرم)','مبلغ (ریال)','توضیحات'],forecasts.flatMap(r=>r.data.forecast_months.map(m=>[parentName(r),allRows.find(p=>p.id===r.data.forecast_product_id)?.data.name||r.data.name,r.data.sku,r.data.category,m.month,m.quantity??'',m.amount??'',r.data.description])));
     return wb;
 }
 export async function exportExcel(items: Row[], allRows: Row[]=items){const buffer=await buildWorkbook(items,allRows).xlsx.writeBuffer();return new Uint8Array(buffer);}

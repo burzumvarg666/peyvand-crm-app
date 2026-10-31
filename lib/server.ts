@@ -24,6 +24,11 @@ export async function sb(path: string, token?: string, init: RequestInit = {}) {
     if (r.status === 403 || data?.code === '42501')
         throw new ApiError('اجازه انجام این عملیات را ندارید.', 403);
     const returnErrors: Record<string,string> = {
+        invalid_forecast_customer:'مشتری پیش‌بینی معتبر نیست.',
+        invalid_forecast_product:'ابتدا محصول مرتبط با پیش‌بینی را ثبت یا بازیابی کنید.',
+        immutable_forecast_pair:'مشتری و محصول یک ردیف پیش‌بینی را نمی‌توان تغییر داد؛ یک ردیف جدید بسازید.',
+        invalid_forecast_months:'ماه‌ها باید معتبر، بدون تکرار و دارای حداقل یک مقدار یا مبلغ باشند.',
+        invalid_forecast_values:'مقدار و مبلغ پیش‌بینی باید مثبت یا صفر و داخل محدوده مجاز باشند.',
         trash_item_exists:'این مورد قبلاً بازیابی شده یا وضعیت آن تغییر کرده است.',
         trash_parent_missing:'ابتدا پروندهٔ اصلی این مورد را بازیابی کنید.',
         trash_restore_failed:'بازیابی انجام نشد؛ اطلاعات مرتبط را بررسی کنید.',

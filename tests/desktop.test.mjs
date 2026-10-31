@@ -65,3 +65,16 @@ test('inactive product can be adjusted to zero before deletion',()=>{const s=cre
  assert.equal(s.records().some(r=>r.id===p.id),false);
 }finally{s.close();}});
 test('lead conversion preserves identity, notes and contacts through backup restore',()=>{const s=create(),restored=create();try{const lead=s.save({kind:'companies',data:data('سرنخ',{status:'lead',industry:'اتوبوس‌سازی'}),parent_id:null});const note=s.save({kind:'notes',data:data('یادداشت',{description:'سابقه تماس'}),parent_id:lead.id});const contact=s.save({kind:'contacts',data:data('مخاطب'),parent_id:lead.id});s.save({id:lead.id,version:1,kind:'companies',data:{...s.records().find(r=>r.id===lead.id).data,status:'active'},parent_id:null});restored.restoreBackup(s.exportBackup());assert.equal(restored.records().find(r=>r.id===lead.id).data.status,'active');for(const id of [note.id,contact.id])assert.equal(restored.records().find(r=>r.id===id).parent_id,lead.id);}finally{s.close();restored.close();}});
+
+
+test('forecast storage validates relations, duplicates, versions and preserves monthly data in backups',()=>{const s=create(),other=create();try{
+ const c=s.save({kind:'companies',data:data('مشتری پیش‌بینی'),parent_id:null}),p=s.save({kind:'products',data:data('محصول پیش‌بینی'),parent_id:null});
+ const d=data('پیش‌بینی',{forecast_product_id:p.id,forecast_months:[{month:'2026-12',quantity:100.5,amount:2000000},{month:'2027-01',quantity:0,amount:null}]});
+ const f=s.save({kind:'forecasts',data:d,parent_id:c.id});
+ assert.throws(()=>s.save({kind:'forecasts',data:d,parent_id:c.id}),e=>e.status===409);
+ assert.throws(()=>s.save({kind:'forecasts',data:d,parent_id:null}));
+ assert.throws(()=>s.delete({id:c.id,version:1}),/پیش‌بینی/);
+ s.save({id:f.id,version:1,kind:'forecasts',data:{...d,description:'changed'},parent_id:c.id});
+ assert.throws(()=>s.save({id:f.id,version:1,kind:'forecasts',data:d,parent_id:c.id}),e=>e.status===409);
+ other.restoreBackup(s.exportBackup());assert.deepEqual(other.records().find(r=>r.id===f.id).data.forecast_months,d.forecast_months);
+ }finally{s.close();other.close();}});

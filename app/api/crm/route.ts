@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
             if (v.kind === 'tasks' && !['open','done'].includes(v.data.status)) throw new ApiError('وضعیت پیگیری معتبر نیست.');
             if (['companies','contacts'].includes(v.kind) && !['active','lead','inactive'].includes(v.data.status)) throw new ApiError('وضعیت مشتری معتبر نیست.');
             if (['companies','products','automations'].includes(v.kind) && v.parent_id) throw new ApiError('این نوع رکورد نمی‌تواند رکورد والد داشته باشد.');
-            if (v.kind === 'proformas' && !v.parent_id) throw new ApiError('مشتری پیش‌فاکتور را انتخاب کنید.');
+            if (['proformas','forecasts'].includes(v.kind) && !v.parent_id) throw new ApiError(v.kind==='forecasts'?'مشتری پیش‌بینی را انتخاب کنید.':'مشتری پیش‌فاکتور را انتخاب کنید.');
             if (v.parent_id) {
                 if (v.id === v.parent_id) throw new ApiError('ارتباط رکورد با خودش مجاز نیست.');
                 const parents = await rest(`crm_records?id=eq.${v.parent_id}&org_id=eq.${m.org_id}&select=kind`, token);
@@ -171,6 +171,13 @@ export async function POST(req: NextRequest) {
                     return {...item,name:saved?.name??product.data.name,unit:saved?.unit??product.data.unit,unit_price:saved?.unit_price??product.data.price,product_code:saved?.product_code??product.data.sku??''};
                 });
 
+            }
+            if(v.kind==='forecasts'){
+                const product=(await rest(`crm_records?id=eq.${v.data.forecast_product_id}&org_id=eq.${m.org_id}&kind=eq.products&select=id,data`,token))[0];
+                if(!product)throw new ApiError('محصول پیش‌بینی معتبر نیست.');
+                if((!previous||previous.data.forecast_product_id!==product.id)&&(product.data.status!=='active'||product.data.archived))throw new ApiError('برای پیش‌بینی جدید، یک محصول فعال انتخاب کنید.');
+                const duplicates=await rest(`crm_records?org_id=eq.${m.org_id}&kind=eq.forecasts&parent_id=eq.${v.parent_id}&data->>forecast_product_id=eq.${v.data.forecast_product_id}&select=id`,token);
+                if(duplicates.some((r:{id:string})=>r.id!==v.id))throw new ApiError('برای این مشتری و محصول قبلاً پیش‌بینی ثبت شده؛ همان ردیف را ویرایش کنید.',409);
             }
             if (v.data.assignee) {
                 const assignees = await rest(`crm_members?user_id=eq.${v.data.assignee}&org_id=eq.${m.org_id}&select=user_id`, token);

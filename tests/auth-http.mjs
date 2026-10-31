@@ -26,7 +26,7 @@ before(async()=>{
   if(['/auth/v1/resend','/auth/v1/recover','/auth/v1/logout'].includes(u.pathname))return send({});
   if(u.pathname==='/auth/v1/otp')return body.email==='blocked@example.com'?send({code:'email_address_not_authorized'},403):send({});
   if(['/rest/v1/rpc/crm_set_member_access','/rest/v1/rpc/crm_set_member_delete_permission','/rest/v1/rpc/crm_set_customer_scope'].includes(u.pathname))return send(null);
-  if(u.pathname==='/rest/v1/crm_records'){if(req.method==='DELETE')return send([{id:'33333333-3333-4333-8333-333333333333'}]);if(u.searchParams.has('parent_id'))return send([]);return send([{id:'33333333-3333-4333-8333-333333333333',kind:'companies',data:{},version:1}]);}
+  if(u.pathname==='/rest/v1/crm_records'){if(u.searchParams.get('kind')==='eq.products')return send([{id:'55555555-5555-4555-8555-555555555555',kind:'products',data:{name:'Product',status:'active',archived:false}}]);if(u.searchParams.get('kind')==='eq.forecasts')return send([]);if(req.method==='DELETE')return send([{id:'33333333-3333-4333-8333-333333333333'}]);if(u.searchParams.has('parent_id'))return send([]);return send([{id:'33333333-3333-4333-8333-333333333333',kind:'companies',data:{},version:1}]);}
   if(u.pathname==='/rest/v1/rpc/crm_import_with_samples')return send({imported:1});
   if(u.pathname==='/rest/v1/rpc/crm_recover_snapshot')return send({imported:1,audit_imported:2});
   if(u.pathname==='/rest/v1/rpc/crm_management_activity')return auth==='Bearer valid-access'?send([]):send({code:'42501'},403);
@@ -167,4 +167,13 @@ test('only an admin can configure customer scope for a member',async()=>{
  for(const access of ['sales-access','viewer-access'])assert.equal((await client({peyvand_access:access}).call('/api/crm',input)).status,403);
  assert.equal(calls.filter(c=>c.path==='/rest/v1/rpc/crm_set_customer_scope').length,before);
  const result=await client({peyvand_access:'valid-access'}).call('/api/crm',input);assert.equal(result.status,200);assert.deepEqual(calls.at(-1).body,{target_user:user_id,new_scope:'assigned'});
+});
+
+
+test('forecast HTTP validates months, customer and role before saving independent kg and IRR values',async()=>{
+ const base={action:'save',kind:'forecasts',parent_id:'33333333-3333-4333-8333-333333333333',data:{name:'Forecast',forecast_product_id:'55555555-5555-4555-8555-555555555555',forecast_months:[{month:'2026-12',quantity:100.5,amount:2000000.25},{month:'2027-01',quantity:0,amount:null}]}};
+ assert.equal((await client({peyvand_access:'viewer-access'}).call('/api/crm',base)).status,403);
+ const sales=client({peyvand_access:'sales-access'});assert.equal((await sales.call('/api/crm',{...base,parent_id:null})).status,400);
+ for(const cell of [{month:'2026-13',quantity:1,amount:0},{month:'2026-12',quantity:-1,amount:0},{month:'2026-12',quantity:1,amount:'10'}])assert.equal((await sales.call('/api/crm',{...base,data:{...base.data,forecast_months:[cell]}})).status,400);
+ const result=await sales.call('/api/crm',base);assert.equal(result.status,200);const written=calls.findLast(c=>c.path==='/rest/v1/crm_records'&&c.method==='POST');assert.equal(written.body.kind,'forecasts');assert.equal(written.body.parent_id,base.parent_id);assert.deepEqual(written.body.data.forecast_months,base.data.forecast_months);
 });

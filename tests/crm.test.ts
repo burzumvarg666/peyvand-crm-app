@@ -119,3 +119,30 @@ test('personal followups include only assigned open tasks due today or earlier',
  const rows=[make('today',user,'2026-10-30','open','activities','14:00'),make('late',user,'2026-10-29'),make('future',user,'2026-10-31'),make('other',other,'2026-10-29'),make('done',user,'2026-10-29','done'),make('unassigned','','2026-10-29'),make('undated',user,'')];
  assert.deepEqual(personalFollowups(rows,user,'2026-10-30').map(r=>r.id),['late','today']);assert.deepEqual(personalFollowups(rows,'','2026-10-30'),[]);
 });
+
+import {currentForecastMonth,forecastWindow,forecastTotals,forecastMonthsSchema,mergeForecastMonths,forecastNumber} from '../lib/forecast';
+import {buildForecastWorkbook} from '../lib/forecast-export';
+test('N+5 has exactly six Gregorian months and retains absolute months across year rollover',()=>{
+ assert.deepEqual(forecastWindow('2026-10'),['2026-10','2026-11','2026-12','2027-01','2027-02','2027-03']);
+ assert.equal(currentForecastMonth(new Date('2026-10-31T21:00:00Z')),'2026-11');
+ const existing=[{month:'2026-09',quantity:12.345,amount:1000},{month:'2026-10',quantity:0,amount:null}];
+ const merged=mergeForecastMonths(existing,[{month:'2026-10',quantity:100,amount:2000},{month:'2026-11',quantity:null,amount:0}]);
+ assert.equal(merged[0].quantity,12.345);assert.equal(merged[1].quantity,100);assert.equal(merged[2].amount,0);
+ for(const cells of [[{month:'2026-13',quantity:1,amount:null}],[{month:'2026-12',quantity:-1,amount:0}],[{month:'2026-12',quantity:1,amount:'2'}],[{month:'2026-12',quantity:1,amount:Infinity}],[existing[0],existing[0]]])assert.equal(forecastMonthsSchema.safeParse(cells).success,false);
+});
+test('forecast totals separate kg and IRR, distinguish missing and zero, and ignore other CRM kinds',()=>{
+ const base=demoState().records[0];
+ const make=(quantity:number|null,amount:number|null)=>({...base,kind:'forecasts' as const,data:dataSchema.parse({...base.data,forecast_product_id:'11111111-1111-4111-8111-111111111111',forecast_months:[{month:'2026-10',quantity,amount}]})});
+ const rows=[make(0,null),make(1200.5,1000000.25),{...make(999,999),kind:'deals' as const}];
+ const totals=forecastTotals(rows,['2026-10','2026-11']);
+ assert.deepEqual(totals[0],{month:'2026-10',quantity:1200.5,amount:1000000.25,quantityCount:2,amountCount:1});
+ assert.equal(totals[1].quantityCount,0);assert.equal(forecastNumber(null),'—');assert.equal(forecastNumber(0),'0');assert.equal(forecastNumber(1234567.891),'1,234,567.89');assert.equal(forecastNumber(0.001),'< 0.01');
+ const saved=dataSchema.parse(JSON.parse(JSON.stringify(rows[1].data)));assert.equal(saved.forecast_months[0].amount,1000000.25);
+});
+test('forecast Excel uses selected absolute months, numeric kg/IRR cells, and leaves missing cells blank',()=>{
+ const state=demoState(),customer=state.records.find(r=>r.kind==='companies')!,product=state.records.find(r=>r.kind==='products')||state.records[0];
+ const row={...state.records[0],kind:'forecasts' as const,parent_id:customer.id,data:dataSchema.parse({name:'Forecast',sku:'001234',category:'paint',forecast_product_id:product.id,forecast_months:[{month:'2026-10',quantity:0,amount:1234567.89},{month:'2026-11',quantity:1.2345,amount:null}]})};
+ const sheet=buildForecastWorkbook([row],[customer,product],forecastWindow('2026-10')).worksheets[0];
+ assert.equal(sheet.getRow(3).getCell(1).value,customer.data.name);assert.equal(sheet.getRow(3).getCell(3).value,'001234');assert.equal(sheet.getRow(3).getCell(5).value,0);assert.equal(sheet.getRow(3).getCell(6).value,1234567.89);assert.equal(sheet.getRow(3).getCell(7).value,1.2345);assert.equal(sheet.getRow(3).getCell(8).value,null);assert.equal(sheet.getRow(2).getCell(5).value,'N 2026-10 (kg)');assert.equal(sheet.getRow(2).getCell(16).value,'N+5 2027-03 (IRR)');
+ assert.ok(!JSON.stringify(sheet.getRow(2).values).includes('Achievement'));assert.ok(!JSON.stringify(sheet.getRow(2).values).includes('Status'));
+});
