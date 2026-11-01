@@ -11,6 +11,7 @@ import {AccountSettings} from '@/components/crm/account-settings';
 import {Samples} from '@/components/crm/samples';
 import {MaterialReturns} from '@/components/crm/material-returns';
 import {RecycleBin} from '@/components/crm/recycle-bin';
+import {executeBulkDelete,type BulkDeleteHandler,type BulkDeleteResult} from '@/lib/bulk-delete';
 import {ForecastWorkspace,ForecastEditor} from '@/components/crm/forecast-workspace';
 import {ManagementActivity} from '@/components/crm/management-activity';
 import {PlatformAdmin} from '@/components/crm/platform-admin';
@@ -110,12 +111,25 @@ export default function App(){
   toast.success('اطلاعات ذخیره شد');
  }
  const saveAction=(kind:Kind,data:Data,parent:string|null,row?:Row)=>run(()=>save(kind,data,parent,row));
- async function remove(row:Row){
+ async function remove(row:Row,quiet=false){
   if(demo){if(row.kind==='stock_movements')throw new Error('سند انبار به‌تنهایی حذف نمی‌شود.');if(row.kind==='products'){if(row.data.stock!==0)throw new Error('برای حذف محصول، ابتدا موجودی را به صفر برسانید.');if(row.data.status!=='inactive')throw new Error('برای حذف کامل محصول، ابتدا وضعیت آن را غیرفعال کنید.');}
    setState(s=>s?{...s,records:row.kind==='products'?s.records.map(r=>r.id===row.id?{...r,data:{...r.data,archived:true},version:r.version+1}:r):s.records.filter(r=>r.id!==row.id).map(r=>r.parent_id===row.id?{...r,parent_id:null,version:r.version+1}:r)}:s);
-  }else{await api('/api/crm',{action:'delete',id:row.id,version:row.version});await reload();}
-  setDeleting(null);if(detail===row.id)setDetail(null);toast.success('حذف شد');
+  }else{await api('/api/crm',{action:'delete',id:row.id,version:row.version});if(!quiet)await reload();}
+  if(!quiet){setDeleting(null);if(detail===row.id)setDetail(null);toast.success('حذف شد');}
  }
+ const removeMany:BulkDeleteHandler=async(targets,progress,signal)=>{
+  let outcome:BulkDeleteResult|null=null;
+  await run(async()=>{
+   outcome=await executeBulkDelete(targets,row=>remove(row,true),progress,signal);
+   const deleted=new Set(outcome.deleted);
+   if(!demo){
+    setState(current=>current?{...current,records:current.records.filter(r=>!deleted.has(r.id)||r.kind==='products').map(r=>deleted.has(r.id)?{...r,data:{...r.data,archived:true},version:r.version+1}:r)}:current);
+    await reload();
+   }
+   if(detail&&deleted.has(detail))setDetail(null);
+  });
+  return outcome||{deleted:[],failed:targets.map(row=>({id:row.id,name:row.data.name,error:'عملیات دیگری در حال اجراست؛ دوباره تلاش کنید.'})),cancelled:[]};
+ };
  const movement=(input:InventoryInput)=>run(async()=>{
   if(demo){const p=rows.find(r=>r.id===input.product_id);if(!p)throw new Error('محصول یافت نشد.');
    const after=Math.round((input.type==='adjustment'?input.quantity:p.data.stock+(input.type==='in'?input.quantity:-input.quantity))*100)/100;
@@ -198,11 +212,11 @@ export default function App(){
  {view==='followups'&&<Followups rows={rows} onOpen={setDetail} onNew={canEdit?id=>newRelated('activities',id,{due:localDay(),activity_type:'call'}):undefined}/>}
  {view==='duplicates'&&<Duplicates rows={rows} busy={busy} onOpen={setDetail} onMerge={desktop&&canEdit?(a,b)=>run(async()=>{await api('/api/crm',{action:'merge',keep:a.id,source:b.id,keepVersion:a.version,sourceVersion:b.version});await reload();toast.success('ادغام انجام شد؛ اطلاعات اولیه در یادداشت محفوظ است.');}):undefined}/>}
  {view==='dashboard'&&<Dashboard rows={rows} audit={state.audit} userId={state.user.id} onNavigate={navigate} onOpen={setDetail}/>}
- {view==='forecasts'&&<ForecastWorkspace rows={rows} canEdit={canEdit} canDelete={state.role==='admin'||!!state.canDelete} busy={busy} onSave={(data,parent,row)=>saveAction('forecasts',data,parent,row)} onDelete={setDeleting}/>}
+ {view==='forecasts'&&<ForecastWorkspace rows={rows} canEdit={canEdit} canDelete={state.role==='admin'||!!state.canDelete} busy={busy} onSave={(data,parent,row)=>saveAction('forecasts',data,parent,row)} onDelete={setDeleting} onDeleteMany={removeMany}/>}
  {view==='reports'&&<SalesReport rows={rows} onOpen={setDetail} onExport={downloadExcel}/>}
  {(recordView||view==='inventory')&&<div className="toolbar"><label className="search"><Search size={18}/><Input aria-label="جست‌وجو در اطلاعات" placeholder="جست‌وجوی نام، کد یا شماره…" value={query} onChange={e=>setQuery(e.target.value)}/></label>{recordView&&<Pick label="ترتیب نمایش" value={sort} onChange={setSort} options={[{value:'name-asc',label:'نام: الف تا ی'},{value:'name-desc',label:'نام: ی تا الف'},{value:'created-desc',label:'تاریخ ثبت: جدیدترین'},{value:'created-asc',label:'تاریخ ثبت: قدیمی‌ترین'},{value:'updated-desc',label:'آخرین تغییر: جدیدترین'},{value:'updated-asc',label:'آخرین تغییر: قدیمی‌ترین'}]}/>}{['leads','companies','contacts'].includes(view)&&<Pick label="فیلتر حوزه فعالیت" value={industry} onChange={setIndustry} options={[{value:'all',label:'همه حوزه‌های فعالیت'},...industries.map(value=>({value,label:value}))]}/>}<span className="muted">{recordView?num(filtered.length)+' مورد':''}</span>{view!=='leads'&&<Pick label="فیلتر وضعیت" value={filter} onChange={setFilter} options={options}/>}</div>}
  {view==='deals'&&<Pipeline rows={filtered} allRows={rows} canEdit={canEdit} busy={busy} onOpen={setDetail} onMove={(r,stage)=>saveAction('deals',{...r.data,stage},r.parent_id,r)} onNew={()=>setEditing({kind:'deals'})}/>}
- {recordView&&view!=='deals'&&view!=='activities'&&<Records rows={filtered} allRows={rows} view={view} canEdit={canEdit} busy={busy} onOpen={setDetail} onToggle={r=>saveAction(r.kind,{...r.data,status:r.data.status==='done'?'open':'done'},r.parent_id,r)}/>}
+ {recordView&&view!=='deals'&&view!=='activities'&&<Records key={view} rows={filtered} allRows={rows} view={view} canDelete={desktop||demo||state.role==='admin'||!!state.canDelete} onDeleteMany={removeMany} canEdit={canEdit} busy={busy} onOpen={setDetail} onToggle={r=>saveAction(r.kind,{...r.data,status:r.data.status==='done'?'open':'done'},r.parent_id,r)}/>}
  {view==='activities'&&<ActivitiesWorkspace rows={filtered} allRows={rows} members={state.members} canEdit={canEdit} busy={busy} onOpen={setDetail} onToggle={r=>saveAction(r.kind,{...r.data,status:r.data.status==='done'?'open':'done'},r.parent_id,r)} onNew={type=>setEditing({kind:'activities',preset:{activity_type:type}})}/>}
  {view==='inventory'&&<Inventory rows={rows} query={query} filter={filter} busy={busy} canEdit={canEdit} onOpen={setDetail} onMovement={movement} onExport={downloadExcel}/>}
  {view==='settings'&&!desktop&&!demo&&<section className="settings-grid settings-single"><AccountSettings onProfileSaved={setProfileName}/></section>}

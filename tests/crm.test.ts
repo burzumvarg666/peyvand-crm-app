@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dataSchema, summary, exportCsv, csvCell } from '../lib/crm';
+import { blank, dataSchema, summary, exportCsv, csvCell } from '../lib/crm';
 import { buildWorkbook } from '../lib/exports';
 import { demoState } from '../lib/demo';
 import {personalFollowups} from '../lib/personal-followups';
@@ -181,4 +181,26 @@ test('dispatch variance keeps missing, zero, OTM basis and unmatched rows distin
  assert.equal(forecastMonthSchema.safeParse({month:'2026-11',quantity:10,amount:null,actual_quantity:-1}).success,false);
  const original=[{month:'2026-10',quantity:1,amount:null,basis:'otm' as const,production:125,consumption:.0123456789,actual_quantity:1}];
  const {mergeForecastMonths}=await import('../lib/forecast');assert.deepEqual(mergeForecastMonths(original,[{month:'2026-11',quantity:0,amount:null}])[0],original[0]);
+});
+
+
+test('bulk deletion keeps product prerequisites, deduplicates IDs and reports per-record conflicts',async()=>{
+ const {deletionBlock,executeBulkDelete}=await import('../lib/bulk-delete');
+ const base={...blank(),name:'Product',status:'inactive' as const,stock:0};
+ const row=(id:string,kind:Row['kind']='products')=>({id,kind,parent_id:null,data:{...base},version:1} as Row);
+ assert.equal(deletionBlock(row('a'),[]),'');
+ assert.match(deletionBlock({...row('a'),data:{...base,status:'active'}},[]),/غیرفعال/);
+ assert.match(deletionBlock({...row('a'),data:{...base,stock:1}},[]),/صفر/);
+ assert.match(deletionBlock(row('a','forecasts'),[{...row('child','notes'),parent_id:'a'}]),/سابقه/);
+ const called:string[]=[],progress:number[]=[];
+ const result=await executeBulkDelete([row('a'),row('b'),row('c'),row('a')],async r=>{called.push(r.id);if(r.id==='b')throw Error('version conflict');},n=>progress.push(n),new AbortController().signal);
+ assert.deepEqual([...called].sort(),['a','b','c']);assert.deepEqual(result.deleted.sort(),['a','c']);assert.equal(result.failed[0].id,'b');assert.equal(result.failed[0].error,'version conflict');assert.equal(progress.at(-1),3);
+});
+
+test('stopping bulk deletion leaves every unstarted record unchanged',async()=>{
+ const {executeBulkDelete}=await import('../lib/bulk-delete');const controller=new AbortController();
+ const targets=Array.from({length:10},(_,i)=>({id:String(i),kind:'forecasts',data:{...blank(),name:String(i)}} as Row));
+ const attempted:string[]=[];
+ const result=await executeBulkDelete(targets,async row=>{attempted.push(row.id);controller.abort();},()=>{},controller.signal);
+ assert.equal(attempted.length,1);assert.deepEqual(result.cancelled,targets.slice(1).map(r=>r.id));assert.equal(result.deleted.length,1);
 });
