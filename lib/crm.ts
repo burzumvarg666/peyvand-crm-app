@@ -27,6 +27,8 @@ const date = z.string().refine(s => s === '' || (/^\d{4}-\d{2}-\d{2}$/.test(s) &
 const coreDataSchema = z.object({ name: z.string().trim().min(1, 'عنوان را وارد کنید').max(160), email: z.union([z.literal(''), z.string().email('ایمیل معتبر نیست')]).default(''), phone: z.string().max(50).default(''), industry: z.string().max(100).default(''), city: z.string().max(100).default(''), position: z.string().max(100).default(''), website: z.string().max(300).default(''), address: z.string().max(1000).default(''), employee_count: z.number().int().min(0).max(1e9).default(0), lead_source: z.string().max(120).default(''), lead_rank: z.enum(['cold', 'warm', 'hot']).default('warm'), status: z.enum(['active', 'lead', 'inactive', 'open', 'done']).default('active'), stage: z.enum(stages).default('lead'), amount: z.number().finite().min(0).max(1e15).default(0), probability: z.number().finite().min(0).max(100).default(0), estimated_sales_date: date.default(''), start_date: date.default(''), end_date: date.default(''), due: date.default(''), campaign: z.string().max(160).default(''), next_step: z.string().max(500).default(''), currency: z.string().max(20).default('تومان'), priority: z.enum(['low', 'normal', 'high']).default('normal'), activity_type: z.enum(activityTypes).default('call'), activity_direction: z.enum(activityDirections).default('none'), activity_time: z.string().refine(v=>v===''||/^([01]\d|2[0-3]):[0-5]\d$/.test(v),'ساعت معتبر نیست').default(''), activity_end_time: z.string().refine(v=>v===''||/^([01]\d|2[0-3]):[0-5]\d$/.test(v),'ساعت معتبر نیست').default(''), activity_location: z.string().max(300).default(''), activity_result: z.string().max(500).default(''), description: z.string().max(10000).default(''), assignee: z.union([z.literal(''), z.string().uuid()]).default('') }).strict();
 export const salesSchema = z.object({
     forecast_product_id: z.union([z.literal(''),z.string().uuid()]).default(''),
+    forecast_material: z.string().trim().max(100).default(''),
+    forecast_import_key: z.string().trim().max(120).default(''),
     forecast_months: forecastMonthsSchema.default([]),
     closed_on: date.default(''),
     related_deal_id: z.union([z.literal(''),z.string().uuid()]).default(''),
@@ -111,7 +113,7 @@ export function quoteAmounts(data: Pick<Data, 'items' | 'discount_percent' | 'ta
 export const proformaTotal = (data: Data) => quoteAmounts(data).total;
 export function validateSales(kind: Kind, data: Data) {
     if(kind==='forecasts'&&(!data.forecast_product_id||!data.forecast_months.length))return 'محصول و مقدار یا مبلغ حداقل یک ماه را مشخص کنید.';
-    if(kind==='forecasts'&&!data.forecast_months.some(m=>m.quantity!==null||m.amount!==null))return 'مقدار یا مبلغ حداقل یک ماه را وارد کنید.';
+    if(kind==='forecasts'&&!data.forecast_import_key&&!data.forecast_months.some(m=>m.quantity!==null||m.amount!==null||m.actual_quantity!=null))return 'مقدار یا مبلغ حداقل یک ماه را وارد کنید.';
     if (['products', 'automations'].includes(kind) && !['active', 'inactive'].includes(data.status)) return 'وضعیت معتبر نیست.';
     if (kind === 'activities' && !['open', 'done'].includes(data.status)) return 'وضعیت فعالیت معتبر نیست.';
     if (kind === 'activities' && data.activity_time && data.activity_end_time && data.activity_end_time < data.activity_time) return 'ساعت پایان نمی‌تواند قبل از ساعت شروع باشد.';

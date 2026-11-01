@@ -166,3 +166,19 @@ test('offline and demo navigation do not expose online account or private admini
   const pages=workspaceLinks('settings',context).map(p=>p.id);for(const id of ['settings','platform-admin','trash','activity-log'])assert.ok(!pages.includes(id));assert.ok(pages.includes('backup-settings'));assert.ok(pages.includes('automations'));assert.equal(resolveNavigation('settings',context),'backup-settings');
  }
 });
+
+
+// Monthly dispatch comparisons must never treat missing dispatches as zero.
+test('dispatch variance keeps missing, zero, OTM basis and unmatched rows distinct',async()=>{
+ const {forecastComparison,forecastComparisonTotals,forecastMonthSchema}=await import('../lib/forecast');
+ assert.deepEqual(forecastComparison({month:'2026-11',quantity:100,amount:null}),{planned:100,actual:null,delta:null,percent:null});
+ assert.deepEqual(forecastComparison({month:'2026-11',quantity:100,amount:null,basis:'otm',actual_quantity:0}),{planned:100,actual:0,delta:-100,percent:-100});
+ assert.equal(forecastComparison({month:'2026-11',quantity:0,amount:null,actual_quantity:20}).percent,null);
+ assert.equal(forecastComparison({month:'2026-11',quantity:80,amount:null,actual_quantity:100}).delta,20);
+ const make=(quantity:number|null,actual_quantity:number|null)=>({kind:'forecasts',data:{forecast_months:[{month:'2026-11',quantity,amount:null,actual_quantity}]}} as Row);
+ const totals=forecastComparisonTotals([make(100,80),make(900,null),make(null,25)],'2026-11');
+ assert.equal(totals.planned,1000);assert.equal(totals.actual,105);assert.equal(totals.matchedPlanned,100);assert.equal(totals.delta,-20);assert.equal(totals.percent,-20);assert.equal(totals.matchedCount,1);
+ assert.equal(forecastMonthSchema.safeParse({month:'2026-11',quantity:10,amount:null,actual_quantity:-1}).success,false);
+ const original=[{month:'2026-10',quantity:1,amount:null,basis:'otm' as const,production:125,consumption:.0123456789,actual_quantity:1}];
+ const {mergeForecastMonths}=await import('../lib/forecast');assert.deepEqual(mergeForecastMonths(original,[{month:'2026-11',quantity:0,amount:null}])[0],original[0]);
+});

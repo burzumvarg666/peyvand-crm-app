@@ -1,9 +1,27 @@
 import {z} from 'zod';
 import type {Row} from './crm';
 export const forecastMonthKey=z.string().regex(/^(20\d{2}|21\d{2})-(0[1-9]|1[0-2])$/,'ماه میلادی معتبر نیست.');
-export const forecastMonthSchema=z.object({month:forecastMonthKey,quantity:z.number().finite().min(0).max(1e12).nullable(),amount:z.number().finite().min(0).max(1e15).nullable()}).strict();
+const quantity=z.number().finite().min(0).max(1e12).nullable();
+export const forecastMonthSchema=z.object({
+ month:forecastMonthKey,quantity,amount:z.number().finite().min(0).max(1e15).nullable(),
+ basis:z.enum(['forecast','otm']).optional(),production:quantity.optional(),consumption:quantity.optional(),actual_quantity:quantity.optional()
+}).strict();
 export const forecastMonthsSchema=z.array(forecastMonthSchema).max(240).refine(rows=>new Set(rows.map(r=>r.month)).size===rows.length,'ماه تکراری در پیش‌بینی وجود دارد.');
 export type ForecastMonth=z.infer<typeof forecastMonthSchema>;
+export const forecastBasisLabel=(cell?:ForecastMonth)=>cell?.basis==='otm'?'سفارش قطعی (OTM)':'پیش‌بینی (Forecast)';
+export function forecastComparison(cell?:ForecastMonth){
+ const planned=cell?.quantity??null,actual=cell?.actual_quantity??null;
+ const delta=planned!==null&&actual!==null?actual-planned:null;
+ return {planned,actual,delta,percent:delta!==null&&planned!==null&&planned>0?delta/planned*100:null};
+}
+export function forecastComparisonTotals(rows:Row[],month:string){
+ let planned=0,actual=0,matchedPlanned=0,matchedActual=0,plannedCount=0,actualCount=0,matchedCount=0;
+ for(const row of rows){if(row.kind!=='forecasts')continue;const c=forecastComparison(row.data.forecast_months.find(m=>m.month===month));
+  if(c.planned!==null){planned+=c.planned;plannedCount++;}if(c.actual!==null){actual+=c.actual;actualCount++;}
+  if(c.delta!==null){matchedPlanned+=c.planned!;matchedActual+=c.actual!;matchedCount++;}
+ }
+ return {planned,actual,plannedCount,actualCount,matchedCount,matchedPlanned,matchedActual,delta:matchedCount?matchedActual-matchedPlanned:null,percent:matchedCount&&matchedPlanned>0?(matchedActual-matchedPlanned)/matchedPlanned*100:null};
+}
 export function currentForecastMonth(now=new Date()){
  const parts=new Intl.DateTimeFormat('en-US',{year:'numeric',month:'2-digit',timeZone:'Asia/Tehran'}).formatToParts(now);
  return parts.find(p=>p.type==='year')!.value+'-'+parts.find(p=>p.type==='month')!.value;

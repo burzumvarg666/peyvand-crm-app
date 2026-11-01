@@ -7,6 +7,7 @@ await db.exec(`create role anon nologin;create role authenticated nologin;create
 const migrationFiles=['001_crm.sql','002_online_054.sql','platform-access.sql','material-returns.sql','material-returns-details.sql','003_online_import.sql','004_integrity.sql','005_return_workflow.sql','006_return_delete.sql','007_samples.sql','008_sample_dispatch.sql','009_sample_delete.sql','010_sample_material_type.sql','011_sample_dispatch_workspace.sql','012_restrict_backup_helper.sql','013_admin_import_only.sql','014_admin_delete_only.sql','015_team_access.sql','016_safe_import_history.sql','017_member_delete_permission.sql','018_workspace_snapshot.sql','019_recover_snapshot_history.sql','020_recycle_bin.sql','021_management_activity.sql','022_customer_scope.sql'];
 for(const name of migrationFiles)await db.exec(await readFile(new URL('../database/'+name,import.meta.url),'utf8'));
 await db.exec(await readFile(new URL('../supabase/migrations/20261031144514_forecast_n_plus_5.sql',import.meta.url),'utf8'));
+await db.exec(await readFile(new URL('../supabase/migrations/20261101183823_forecast_delivery_comparison.sql',import.meta.url),'utf8'));
 const id=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0'),admin=id(1),sales=id(2),viewer=id(3),outside=id(4),org=id(10),otherOrg=id(11),customer=id(20),otherCustomer=id(21),product=id(30),otherProduct=id(31),forecast=id(40);
 for(const [uid,role,target] of [[admin,'admin',org],[sales,'sales',org],[viewer,'viewer',org],[outside,'admin',otherOrg]]){await db.query('insert into auth.users(id,email,email_confirmed_at) values($1,$2,now())',[uid,uid+'@example.invalid']);if(uid===admin||uid===outside)await db.query("insert into public.crm_orgs(id,name) values($1,'test')",[target]);await db.query('insert into public.crm_members(org_id,user_id,email,role) values($1,$2,$3,$4)',[target,uid,uid+'@example.invalid',role]);}
 const data={name:'Forecast',status:'active',stage:'lead',priority:'normal',amount:0,stock:0,description:'',unit:'kg'},cells=[{month:'2026-12',quantity:100.25,amount:1000000.5},{month:'2027-01',quantity:0,amount:null}];
@@ -37,4 +38,29 @@ const records=[make(newForecast,'forecasts',newCustomer,{forecast_product_id:new
 const backup={format:'peyvand-online',schemaVersion:1,records,samples:[],returns:[]};await db.query('select public.crm_import_with_samples($1::jsonb)',[JSON.stringify(backup)]);assert.equal((await db.query('select version from public.crm_records where id=$1',[newForecast])).rows[0].version,7);
 await db.query('select public.crm_import_with_samples($1::jsonb)',[JSON.stringify(backup)]);assert.equal((await db.query('select count(*)::int n from public.crm_records where id=$1',[newForecast])).rows[0].n,1);console.log('PASS unordered archive restores products before forecasts, preserves versions and remains idempotent');
 await db.query('delete from public.crm_records where id=$1',[newForecast]);const recovery=(await db.query('select public.crm_workspace_snapshot() s')).rows[0].s;recovery.records.push({...records[0],data:{...records[0].data,forecast_months:cells}});const recovered=(await db.query('select public.crm_recover_snapshot($1::jsonb) result',[JSON.stringify(recovery)])).rows[0].result;assert.equal(recovered.imported,1);assert.deepEqual((await db.query('select data from public.crm_records where id=$1',[newForecast])).rows[0].data.forecast_months,cells);console.log('PASS missing forecast recovery preserves dated monthly values');
+// Delivery fields retain blank vs zero and reject invalid direct database requests.
+await login(admin);
+const extended=[{month:'2026-12',quantity:100.123456,amount:null,basis:'otm',production:1500,consumption:0.0123456789,actual_quantity:0}];
+await db.query("update public.crm_records set data=jsonb_set(data,'{forecast_months}',$2::jsonb) where id=$1",[forecast,JSON.stringify(extended)]);
+assert.deepEqual((await db.query('select data from public.crm_records where id=$1',[forecast])).rows[0].data.forecast_months,extended);
+for(const patch of [{basis:'sent'},{actual_quantity:-1},{actual_quantity:'10'},{actual_quantity:1e13},{production:-1},{consumption:[]},{unknown:1}]){
+ await denied(()=>db.query("update public.crm_records set data=jsonb_set(data,'{forecast_months}',$2::jsonb) where id=$1",[forecast,JSON.stringify([{...extended[0],...patch}])]),/invalid_forecast_/);
+}
+const empty=[{month:'2026-12',quantity:null,amount:null,basis:'forecast',production:null,consumption:null,actual_quantity:null}];
+await db.query("update public.crm_records set data=jsonb_set(jsonb_set(data,'{forecast_import_key}',to_jsonb('import-row-1'::text)),'{forecast_months}',$2::jsonb) where id=$1",[forecast,JSON.stringify(empty)]);
+assert.deepEqual((await db.query('select data from public.crm_records where id=$1',[forecast])).rows[0].data.forecast_months,empty);
+console.log('PASS extended month fields, exact precision, explicit zero and missing imported forecasts survive database validation');
+if(process.env.FORECAST_IMPORT_QA){
+ const archive=JSON.parse(await readFile(process.env.FORECAST_IMPORT_QA,'utf8'));
+ await login(admin);await record('df3791b2-24a7-4dbd-abfd-ff8f3662227a','companies',data);
+ const before=(await db.query("select count(*)::int n from public.crm_records where kind='stock_movements'")).rows[0].n;
+ const result=(await db.query('select public.crm_import_with_samples($1::jsonb) result',[JSON.stringify(archive)])).rows[0].result;
+ assert.equal(result.imported,archive.records.length);
+ for(const item of archive.records){const stored=(await db.query('select data from public.crm_records where id=$1',[item.id])).rows[0].data;
+  if(item.kind==='forecasts'){assert.deepEqual(stored.forecast_months,item.data.forecast_months);assert.equal(stored.forecast_material,item.data.forecast_material);assert.equal(stored.forecast_import_key,item.data.forecast_import_key);}
+ }
+ const second=(await db.query('select public.crm_import_with_samples($1::jsonb) result',[JSON.stringify(archive)])).rows[0].result;assert.equal(second.imported,0);
+ assert.equal((await db.query("select count(*)::int n from public.crm_records where kind='stock_movements'")).rows[0].n,before);
+ console.log('PASS entire supplied source imports without precision loss or stock changes and reimport creates zero duplicates');
+}
 await db.close();
