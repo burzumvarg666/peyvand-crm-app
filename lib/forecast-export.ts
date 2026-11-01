@@ -3,9 +3,10 @@ import type {Row} from './crm';
 import {forecastMonthLabel,forecastComparison} from './forecast';
 export function buildForecastWorkbook(items:Row[],allRows:Row[],months:string[]){
  const wb=new ExcelJS.Workbook();wb.creator='Peyvand CRM';wb.created=new Date();
- const sheet=wb.addWorksheet('Forecast N+5',{views:[{state:'frozen',xSplit:4,ySplit:2,rightToLeft:false}]});
+ const reportTitle=months.length===1?'Monthly Forecast':'Forecast N+5';
+ const sheet=wb.addWorksheet(reportTitle,{views:[{state:'frozen',xSplit:4,ySplit:2,rightToLeft:false}]});
  const byId=new Map(allRows.map(r=>[r.id,r]));
- const title=sheet.addRow(['Forecast N+5 · kg / IRR · '+forecastMonthLabel(months[0])+' – '+forecastMonthLabel(months.at(-1)!)]);sheet.mergeCells(1,1,1,months.length*2+5);title.height=30;
+ const title=sheet.addRow([reportTitle+' · kg / IRR · '+forecastMonthLabel(months[0])+' – '+forecastMonthLabel(months.at(-1)!)]);sheet.mergeCells(1,1,1,months.length*2+5);title.height=30;
  sheet.addRow(['Customer','Description','Material','Category',...months.flatMap((m,i)=>[`${i===0?'N':`N+${i}`} ${m} (kg)`,`${i===0?'N':`N+${i}`} ${m} (IRR)`]),'Reason']);
  for(const row of items){if(row.kind!=='forecasts')continue;const p=byId.get(row.data.forecast_product_id);sheet.addRow([byId.get(row.parent_id||'')?.data.name||'',p?.data.name||row.data.name,row.data.forecast_material||row.data.sku,row.data.category,...months.flatMap(month=>{const m=row.data.forecast_months.find(m=>m.month===month);return [m?.quantity??null,m?.amount??null];}),row.data.description]);}
  sheet.columns.forEach((col,i)=>{col.width=i<2?30:i===months.length*2+4?38:22;});
