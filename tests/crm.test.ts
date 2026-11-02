@@ -204,3 +204,21 @@ test('stopping bulk deletion leaves every unstarted record unchanged',async()=>{
  const result=await executeBulkDelete(targets,async row=>{attempted.push(row.id);controller.abort();},()=>{},controller.signal);
  assert.equal(attempted.length,1);assert.deepEqual(result.cancelled,targets.slice(1).map(r=>r.id));assert.equal(result.deleted.length,1);
 });
+
+test('every CRM record kind supports guarded bulk deletion while stock history stays protected',async()=>{
+ const {deletionBlock,executeBulkDelete}=await import('../lib/bulk-delete');
+ const {kinds}=await import('../lib/crm');
+ const items=kinds.filter(kind=>kind!=='stock_movements').map((kind,i)=>({id:String(i),kind,parent_id:null,data:{...blank(),name:kind,status:'inactive',stock:0},version:1} as Row));
+ for(const row of items){assert.equal(deletionBlock(row,[]),'',row.kind);if(row.kind!=='products')assert.match(deletionBlock(row,[{...row,id:'child',kind:'notes',parent_id:row.id}]),/سابقه/,row.kind);}
+ const ledger={...items[0],kind:'stock_movements'} as Row;assert.match(deletionBlock(ledger,[]),/گردش انبار/);
+ const touched:string[]=[];const outcome=await executeBulkDelete(items,async row=>{touched.push(row.kind);if(row.kind==='contacts')throw Error('permission revoked');},()=>{},new AbortController().signal);
+ assert.equal(outcome.deleted.length,items.length-1);assert.equal(outcome.failed[0].name,'contacts');assert.equal(new Set(touched).size,items.length);
+});
+
+test('bulk executor supports independent return records with bounded concurrency and no retry',async()=>{
+ const {executeBulkDelete}=await import('../lib/bulk-delete');
+ const items=Array.from({length:8},(_,i)=>({id:String(i),version:1,data:{name:'Return '+i}}));
+ let running=0,peak=0;const calls=new Map<string,number>();
+ const result=await executeBulkDelete(items,async row=>{running++;peak=Math.max(peak,running);calls.set(row.id,(calls.get(row.id)||0)+1);await new Promise(resolve=>setTimeout(resolve,1));running--;if(row.id==='4')throw Error('version conflict');},()=>{},new AbortController().signal);
+ assert.equal(peak,3);assert.equal(result.deleted.length,7);assert.equal(result.failed[0].id,'4');assert.ok([...calls.values()].every(n=>n===1));
+});
