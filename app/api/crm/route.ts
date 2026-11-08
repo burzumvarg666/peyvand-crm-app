@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ok: true, imported: Number(result?.imported || 0) });
         }
 
-        if (input.action === 'save') {
+        if (input.action === 'issueInvoice') {\n            const p=z.object({id:uuid}).safeParse(input);\n            if(!p.success)throw new ApiError('شناسه فاکتور معتبر نیست.');\n            const issued=await rest('rpc/crm_issue_invoice',token,{method:'POST',body:JSON.stringify({invoice_id:p.data.id})});\n            return NextResponse.json({ok:true,invoice:issued});\n        }\n\n        if (input.action === 'save') {
             const p = z.object({ kind: z.enum(kinds), data: dataSchema, parent_id: uuid.nullable(), id: uuid.optional(), version: z.number().int().positive().optional() }).safeParse(input);
             if (!p.success) throw new ApiError(p.error.issues[0].message);
             const v = p.data;
@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
             if (v.kind === 'tasks' && !['open','done'].includes(v.data.status)) throw new ApiError('وضعیت پیگیری معتبر نیست.');
             if (['companies','contacts'].includes(v.kind) && !['active','lead','inactive'].includes(v.data.status)) throw new ApiError('وضعیت مشتری معتبر نیست.');
             if (['companies','products','automations'].includes(v.kind) && v.parent_id) throw new ApiError('این نوع رکورد نمی‌تواند رکورد والد داشته باشد.');
-            if (['proformas','forecasts'].includes(v.kind) && !v.parent_id) throw new ApiError(v.kind==='forecasts'?'مشتری پیش‌بینی را انتخاب کنید.':'مشتری پیش‌فاکتور را انتخاب کنید.');
+            if (['proformas','invoices','forecasts'].includes(v.kind) && !v.parent_id) throw new ApiError(v.kind==='forecasts'?'مشتری پیش‌بینی را انتخاب کنید.':v.kind==='invoices'?'مشتری فاکتور را انتخاب کنید.':'مشتری پیش‌فاکتور را انتخاب کنید.');
             if (v.parent_id) {
                 if (v.id === v.parent_id) throw new ApiError('ارتباط رکورد با خودش مجاز نیست.');
                 const parents = await rest(`crm_records?id=eq.${v.parent_id}&org_id=eq.${m.org_id}&select=kind`, token);
@@ -165,9 +165,9 @@ export async function POST(req: NextRequest) {
                 const products = await rest(`crm_records?org_id=eq.${m.org_id}&kind=eq.products&id=in.(${ids.join(',')})&select=id,data`, token);
                 if(products.length!==ids.length)throw new ApiError('یکی از محصولات پیش‌فاکتور موجود نیست یا متعلق به این شرکت نیست.');
                 v.data.items=v.data.items.map(item=>{
-                    const saved=previous?.kind==='proformas'?previous.data.items?.find((i:{product_id:string})=>i.product_id===item.product_id):undefined;
+                    const saved=previous&&previous.kind===v.kind?previous.data.items?.find((i:{product_id:string})=>i.product_id===item.product_id):undefined;
                     const product=products.find((p:{id:string})=>p.id===item.product_id);
-                    if(!saved&&product.data.status!=='active')throw new ApiError('محصول غیرفعال را نمی‌توان به پیش‌فاکتور اضافه کرد.');
+                    if(!saved&&product.data.status!=='active')throw new ApiError('محصول غیرفعال را نمی‌توان به سند فروش اضافه کرد.');
                     return {...item,name:saved?.name??product.data.name,unit:saved?.unit??product.data.unit,unit_price:saved?.unit_price??product.data.price,product_code:saved?.product_code??product.data.sku??''};
                 });
 
