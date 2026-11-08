@@ -137,7 +137,14 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ok: true, imported: Number(result?.imported || 0) });
         }
 
-        if (input.action === 'issueInvoice') {\n            const p=z.object({id:uuid}).safeParse(input);\n            if(!p.success)throw new ApiError('شناسه فاکتور معتبر نیست.');\n            const issued=await rest('rpc/crm_issue_invoice',token,{method:'POST',body:JSON.stringify({invoice_id:p.data.id})});\n            return NextResponse.json({ok:true,invoice:issued});\n        }\n\n        if (input.action === 'save') {
+        if (input.action === 'issueInvoice') {
+            const p=z.object({id:uuid}).safeParse(input);
+            if(!p.success)throw new ApiError('شناسه فاکتور معتبر نیست.');
+            const issued=await rest('rpc/crm_issue_invoice',token,{method:'POST',body:JSON.stringify({invoice_id:p.data.id})});
+            return NextResponse.json({ok:true,invoice:issued});
+        }
+
+        if (input.action === 'save') {
             const p = z.object({ kind: z.enum(kinds), data: dataSchema, parent_id: uuid.nullable(), id: uuid.optional(), version: z.number().int().positive().optional() }).safeParse(input);
             if (!p.success) throw new ApiError(p.error.issues[0].message);
             const v = p.data;
@@ -230,7 +237,8 @@ export async function POST(req: NextRequest) {
             if (!p.success) throw new ApiError('شناسه معتبر نیست.');
             const current = await rest(`crm_records?id=eq.${p.data.id}&org_id=eq.${m.org_id}&select=id,kind,data,version&limit=1`, token);
             if (!current.length || current[0].version !== p.data.version) throw new ApiError('رکورد تغییر کرده است. اطلاعات را تازه کنید.', 409);
-            if (current[0].kind === 'stock_movements') throw new ApiError('سند انبار به‌تنهایی حذف نمی‌شود؛ یک اصلاح موجودی ثبت کنید.');\n            if(current[0].kind==='invoices'&&current[0].data?.invoice_status==='issued')throw new ApiError('فاکتور صادرشده حذف نمی‌شود؛ برای اصلاح باید فرایند برگشت یا ابطال ثبت شود.',409);
+            if (current[0].kind === 'stock_movements') throw new ApiError('سند انبار به‌تنهایی حذف نمی‌شود؛ یک اصلاح موجودی ثبت کنید.');
+            if(current[0].kind==='invoices'&&current[0].data?.invoice_status==='issued')throw new ApiError('فاکتور صادرشده حذف نمی‌شود؛ برای اصلاح باید فرایند برگشت یا ابطال ثبت شود.',409);
             if (current[0].kind === 'products') {
                 if (Number(current[0].data?.stock || 0) !== 0) throw new ApiError('برای حذف محصول، ابتدا موجودی را از بخش انبارداری به صفر برسانید.');
                 if (current[0].data?.status !== 'inactive') throw new ApiError('برای حذف کامل محصول، ابتدا وضعیت آن را غیرفعال کنید.');
