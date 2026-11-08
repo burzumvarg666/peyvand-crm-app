@@ -163,21 +163,25 @@ export async function POST(req: NextRequest) {
                 if (!['notes','activities'].includes(v.kind) && parentKind !== 'companies') throw new ApiError('مشتری مرتبط معتبر نیست.');
             }
             const previous=v.id?(await rest(`crm_records?id=eq.${v.id}&org_id=eq.${m.org_id}&select=*`,token))[0]:undefined;
-            if (v.kind === 'proformas') {
-                if(v.data.related_deal_id){
+            if(v.kind==='invoices'){
+                if(previous&&previous.kind!=='invoices')throw new ApiError('نوع رکورد معتبر نیست.',409);
+                if(previous?.data?.invoice_status==='issued')throw new ApiError('فاکتور صادرشده قابل ویرایش نیست؛ برای اصلاح باید فرایند برگشت/ابطال ثبت شود.',409);
+                v.data.invoice_status='draft';v.data.invoice_number='';delete v.data.issued_at;
+            }
+            if (['proformas','invoices'].includes(v.kind)) {
+                if(v.kind==='proformas'&&v.data.related_deal_id){
                     const linked=await rest(`crm_records?id=eq.${v.data.related_deal_id}&org_id=eq.${m.org_id}&kind=eq.deals&parent_id=eq.${v.parent_id}&select=id`,token);
                     if(!linked.length)throw new ApiError('فرصت فروش باید متعلق به همین مشتری باشد.');
                 }
                 const ids = [...new Set(v.data.items.map(i=>i.product_id))];
                 const products = await rest(`crm_records?org_id=eq.${m.org_id}&kind=eq.products&id=in.(${ids.join(',')})&select=id,data`, token);
-                if(products.length!==ids.length)throw new ApiError('یکی از محصولات پیش‌فاکتور موجود نیست یا متعلق به این شرکت نیست.');
+                if(products.length!==ids.length)throw new ApiError('یکی از محصولات سند فروش موجود نیست یا متعلق به این شرکت نیست.');
                 v.data.items=v.data.items.map(item=>{
                     const saved=previous&&previous.kind===v.kind?previous.data.items?.find((i:{product_id:string})=>i.product_id===item.product_id):undefined;
                     const product=products.find((p:{id:string})=>p.id===item.product_id);
                     if(!saved&&product.data.status!=='active')throw new ApiError('محصول غیرفعال را نمی‌توان به سند فروش اضافه کرد.');
                     return {...item,name:saved?.name??product.data.name,unit:saved?.unit??product.data.unit,unit_price:saved?.unit_price??product.data.price,product_code:saved?.product_code??product.data.sku??''};
                 });
-
             }
             if(v.kind==='forecasts'){
                 v.data.currency='ریال';v.data.unit='kg';
