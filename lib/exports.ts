@@ -5,7 +5,7 @@ import { productTypeLabel, labels, stageLabels, statusLabels, quoteStatusLabels,
 const faDate = (s: string) => s ? new Intl.DateTimeFormat('fa-IR-u-ca-persian', {dateStyle:'medium'}).format(new Date(s.length === 10 ? s + 'T12:00:00' : s)) : 'تعیین نشده';
 export const movementLabels = { in: 'ورود کالا', out: 'خروج کالا', adjustment: 'اصلاح شمارش', opening: 'موجودی اولیه' };
 
-export {proformaHtml} from './proforma';
+export {proformaHtml,invoiceHtml} from './proforma';
 
 type Value = string | number | Date;
 const excelDate = (s: string): Value => s ? faDate(s) : '';
@@ -21,7 +21,7 @@ export function buildWorkbook(items: Row[], allRows: Row[] = items) {
     } else if (kind === 'proformas') {
         headers = ['شماره پیش‌فاکتور','شماره نامه','عنوان','مشتری','تاریخ (شمسی)','اعتبار (شمسی)','وضعیت','جمع محصولات (ریال)','تخفیف (ریال)','مالیات (ریال)','مبلغ نهایی (ریال)'];
         values = items.map(r => { const t=quoteAmounts(r.data); return [r.data.quote_number,r.data.letter_number,r.data.name,parentName(r),excelDate(r.data.quote_date||r.created_at),excelDate(r.data.valid_until),quoteStatusLabels[r.data.quote_status],toRial(t.subtotal),toRial(t.discount),toRial(t.tax),toRial(t.total)]; });
-    } else if (kind === 'stock_movements') {
+    } else if (kind === 'invoices') {\n        headers = ['شماره فاکتور','عنوان','مشتری','تاریخ فاکتور (شمسی)','وضعیت','جمع محصولات (ریال)','تخفیف (ریال)','مالیات (ریال)','مبلغ نهایی (ریال)'];\n        values = items.map(r => { const t=quoteAmounts(r.data); return [r.data.invoice_number||'پیش‌نویس',r.data.name,parentName(r),excelDate(r.data.invoice_date||r.created_at),r.data.invoice_status==='issued'?'صادرشده':r.data.invoice_status==='void'?'باطل‌شده':'پیش‌نویس',toRial(t.subtotal),toRial(t.discount),toRial(t.tax),toRial(t.total)]; });\n    } else if (kind === 'stock_movements') {
         headers = ['محصول','نوع عملیات','تغییر موجودی','موجودی پس از عملیات','تاریخ (شمسی)','مرجع','توضیحات'];
         values = items.map(r => [parentName(r) || r.data.name,movementLabels[r.data.movement_type],r.data.movement_quantity,r.data.stock_after,excelDate(r.created_at),r.data.movement_reference,r.data.description]);
     } else if (kind === 'automations') {
@@ -43,13 +43,13 @@ export function buildWorkbook(items: Row[], allRows: Row[] = items) {
         return sheet;
     }
     addSheet(activitySet ? 'فعالیت‌ها' : kind ? labels[kind] : 'رکوردها',['ردیف',...headers],values.map((row,index)=>[index+1,...row]));
-    const quotes=items.filter(r=>r.kind==='proformas');
+    const quotes=items.filter(r=>r.kind==='proformas');\n    const invoices=items.filter(r=>r.kind==='invoices');
     if(quotes.length){
         const lines: Value[][]=[];
         for(const q of quotes)for(const [index,item] of q.data.items.entries())lines.push([q.data.quote_number,q.data.letter_number,parentName(q),item.name,item.product_code||'',item.unit||'عدد',item.package_count??'',item.package_amount??'',item.quantity,toRial(item.unit_price),toRial(quoteAmounts(q.data).lines[index])]);
         addSheet('محصولات پیش‌فاکتور',['شماره پیش‌فاکتور','شماره نامه','مشتری','محصول','کد محصول','واحد','تعداد بسته','مقدار هر بسته','مقدار کل','قیمت واحد (ریال)','مبلغ ردیف (ریال)'],lines);
     }
-    const forecasts=items.filter(r=>r.kind==='forecasts');
+    if(invoices.length){\n        const lines: Value[][]=[];\n        for(const invoice of invoices)for(const [index,item] of invoice.data.items.entries())lines.push([invoice.data.invoice_number||'پیش‌نویس',parentName(invoice),item.name,item.product_code||'',item.unit||'عدد',item.quantity,toRial(item.unit_price),toRial(quoteAmounts(invoice.data).lines[index])]);\n        addSheet('اقلام فاکتور فروش',['شماره فاکتور','مشتری','محصول','کد محصول','واحد','مقدار','قیمت واحد (ریال)','مبلغ ردیف (ریال)'],lines);\n    }\n    const forecasts=items.filter(r=>r.kind==='forecasts');
     if(forecasts.length)addSheet('پیش‌بینی ماهانه',['مشتری','محصول','کد محصول','دسته‌بندی','ماه میلادی','مقدار (کیلوگرم)','مبلغ (ریال)','توضیحات'],forecasts.flatMap(r=>r.data.forecast_months.map(m=>[parentName(r),allRows.find(p=>p.id===r.data.forecast_product_id)?.data.name||r.data.name,r.data.sku,r.data.category,m.month,m.quantity??'',m.amount??'',r.data.description])));
     return wb;
 }
