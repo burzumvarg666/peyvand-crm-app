@@ -187,7 +187,7 @@ export default function App(){
  function pdf(row:Row){
   if(window.peyvand){void run(async()=>{const result=await window.peyvand!.exportPdf(row.id);if(!result.canceled)toast.success('فایل PDF ذخیره شد');});return;}
   const popup=window.open('','_blank');if(!popup){toast.error('اجازهٔ بازشدن پنجرهٔ چاپ را در مرورگر فعال کنید.');return;}
-  void run(async()=>{try{const {proformaHtml}=await import('@/lib/exports');popup.document.write(proformaHtml(row,rows,state!.org!.name));popup.document.close();if(popup.document.readyState!=='complete')await new Promise<void>(resolve=>popup.addEventListener('load',()=>resolve(),{once:true}));await popup.document.fonts.ready;popup.focus();popup.print();}catch(e){popup.close();throw e;}});
+  void run(async()=>{try{const {proformaHtml,invoiceHtml}=await import('@/lib/exports');popup.document.write(row.kind==='invoices'?invoiceHtml(row,rows,state!.org!.name):proformaHtml(row,rows,state!.org!.name));popup.document.close();if(popup.document.readyState!=='complete')await new Promise<void>(resolve=>popup.addEventListener('load',()=>resolve(),{once:true}));await popup.document.fonts.ready;popup.focus();popup.print();}catch(e){popup.close();throw e;}});
  }
  async function logout(){await run(async()=>{if(!demo)await api('/api/auth',{action:'logout'});setState(null);setDemo(false);setDetail(null);announced.current.clear();navigate('dashboard');});}
  const area=navigationArea(view),sectionLinks=workspaceLinks(view,{desktop,demo,role:state?.role||'viewer',platformAdmin:state?.platformAdmin});
