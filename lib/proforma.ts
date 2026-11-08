@@ -41,3 +41,19 @@ export function proformaHtml(row: Row, rows: Row[], _organization: string) {
     <section class="signatures"><div>مهر و امضای فروشنده</div><div>تأیید خریدار</div></section>${seller ? `<section class="seller-contact">${seller}</section>` : ''}
     </body></html>`;
 }
+
+export function invoiceHtml(row: Row, rows: Row[], organization: string) {
+    const invoiceRow: Row = {
+        ...row,
+        data: {
+            ...row.data,
+            quote_number: row.data.invoice_number || '—',
+            quote_date: row.data.invoice_date || row.created_at.slice(0,10),
+            valid_until: '',
+            quote_status: 'accepted'
+        }
+    };
+    return proformaHtml(invoiceRow, rows, organization)
+        .replace('<h1>پیش‌فاکتور</h1>', '<h1>فاکتور فروش</h1>')
+        .replace('شماره پیش‌فاکتور:', 'شماره فاکتور:');
+}
