@@ -137,7 +137,11 @@ export default function App(){
    setState(s=>s?{...s,records:[entry,...s.records.map(r=>r.id===p.id?{...r,data:{...r.data,stock:after},updated_at:now,version:r.version+1}:r)]}:s);
   }else{await api('/api/crm',{action:'inventory',...input});await reload();}toast.success('عملیات انبار ثبت شد');
  });
- async function issueInvoice(row:Row){\n  if(demo){toast.error('صدور فاکتور در نسخه نمایشی انجام نمی‌شود.');return;}\n  await run(async()=>{await api('/api/crm',{action:'issueInvoice',id:row.id});await reload();toast.success('فاکتور صادر شد و موجودی اقلام از انبار کسر شد.');});\n }\n function downloadCsv(items:Row[]){saveBlob(new Blob([exportCsv(items)],{type:'text/csv;charset=utf-8;'}),'Peyvand-'+view+'-'+localDay()+'.csv');}
+ async function issueInvoice(row:Row){
+  if(demo){toast.error('صدور فاکتور در نسخه نمایشی انجام نمی‌شود.');return;}
+  await run(async()=>{await api('/api/crm',{action:'issueInvoice',id:row.id});await reload();toast.success('فاکتور صادر شد و موجودی اقلام از انبار کسر شد.');});
+ }
+ function downloadCsv(items:Row[]){saveBlob(new Blob([exportCsv(items)],{type:'text/csv;charset=utf-8;'}),'Peyvand-'+view+'-'+localDay()+'.csv');}
  function downloadExcel(items:Row[]){void run(async()=>{const {exportExcel}=await import('@/lib/exports');const bytes=await exportExcel(items,rows);saveBlob(new Blob([bytes.buffer as ArrayBuffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'Peyvand-'+view+'-'+localDay()+'.xlsx');toast.success('فایل Excel آماده شد');});}
  async function downloadBackup(){
   if(!state?.org)return;
